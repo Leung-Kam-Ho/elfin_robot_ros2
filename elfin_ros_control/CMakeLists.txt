@@ -38,15 +38,19 @@ find_package(sensor_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(hardware_interface REQUIRED)
-find_package(elfin_ethercat_driver)
-find_package(pluginlib REQUIRED REQUIRED)
+find_package(elfin_ethercat_driver REQUIRED)
+find_package(pluginlib REQUIRED)
 find_package(controller_interface REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 include_directories(
   include
-  ../../../install/elfin_ethercat_driver/include
-  ../../../install/elfin_robot_msgs/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../elfin_ethercat_driver/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../elfin_robot_msgs/include
+)
+
+link_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}/../build/elfin_ethercat_driver
 )
 
 set(DEPENDENCIES
