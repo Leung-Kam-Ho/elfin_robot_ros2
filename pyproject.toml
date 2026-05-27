@@ -1,0 +1,10 @@
+[project]
+name = "elfin-robot-ros2"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "catkin-pkg>=1.1.0",
+    "colcon-common-extensions>=0.3.0",
+]
