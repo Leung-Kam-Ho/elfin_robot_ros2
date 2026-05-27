@@ -7,4 +7,7 @@ requires-python = ">=3.8"
 dependencies = [
     "catkin-pkg>=1.1.0",
     "colcon-common-extensions>=0.3.0",
+    "empy==3.3.4",
+    "lark>=1.3.1",
+    "numpy>=1.24.4",
 ]

@@ -17,19 +17,19 @@ This repository provides ROS2 support for the Elfin Robot. The recommend operati
 
 **Install some important dependent software packages:**
 ```sh
-$ sudo apt-get install ros-foxy-joint-trajectory-controller
-$ sudo apt-get install ros-foxy-controller-manager
-$ sudo apt-get install ros-foxy-trajectory-msgs
-$ sudo apt-get install ros-foxy-gazebo-ros2-control*
-$ sudo apt-get install ros-foxy-joint-state-controller
-$ sudo apt-get install ros-foxy-position-controllers
+sudo apt-get install ros-foxy-joint-trajectory-controller
+sudo apt-get install ros-foxy-controller-manager
+sudo apt-get install ros-foxy-trajectory-msgs
+sudo apt-get install ros-foxy-gazebo-ros2-control*
+sudo apt-get install ros-foxy-joint-state-controller
+sudo apt-get install ros-foxy-position-controllers
 ```
 
 **Install related software packages:**
 ```sh
-$ sudo apt-get install build-essential libgtk-3-dev
-$ sudo pip3 install wxpython
-$ sudo pip3 install transforms3d
+sudo apt-get install build-essential libgtk-3-dev
+sudo pip3 install wxpython
+sudo pip3 install transforms3d
 ```
 
 **Install or upgrade MoveIt!.** 
@@ -39,8 +39,8 @@ If you have installed MoveIt!, please make sure that it's been upgraded to the l
 Install/Upgrade MoveIt!:
 
 ```sh
-$ sudo apt-get update
-$ sudo apt-get install ros-foxy-moveit
+sudo apt-get update
+sudo apt-get install ros-foxy-moveit
 ```
 
 
@@ -52,11 +52,11 @@ Make sure to source the correct setup file according to your workspace hierarchy
 
 Assuming your catkin workspace folder is ~/catkin_ws, you should use the following commands:
 ```sh
-$ cd ~/catkin_ws/src
-$ git clone -b foxy_ethercat https://github.com/huayan-robotics/elfin_robot_ros2.git
-$ cd ..
-$ colcon build
-$ source install/setup.bash
+cd ~/catkin_ws/src
+git clone -b foxy_ethercat https://github.com/huayan-robotics/elfin_robot_ros2.git
+cd ..
+colcon build
+source install/setup.bash
 ```
 
 
@@ -69,13 +69,13 @@ In the following the commands for Elfin3 are given. For Elfin5 or Elfin10, simpl
 
 Bring up the simulated robot in Gazebo and Start up RViz with a configuration including the MoveIt!:
 ```sh
-$ ros2 launch elfin3_ros2_moveit2 elfin3.launch.py
+ros2 launch elfin3_ros2_moveit2 elfin3.launch.py
 ```
 
 Start up elfin basic api and "Elfin Control Panel" interface:
 ```sh
-$ ros2 launch elfin3_ros2_moveit2 elfin3_basic_api.launch.py
-$ ros2 launch elfin_basic_api fake_elfin_gui.launch.py
+ros2 launch elfin3_ros2_moveit2 elfin3_basic_api.launch.py
+ros2 launch elfin_basic_api fake_elfin_gui.launch.py
 ```
 
 > Tutorial about how to use MoveIt! RViz plugin: [docs/moveit_plugin_tutorial_english.md](docs/moveit_plugin_tutorial_english.md)  
@@ -101,24 +101,24 @@ elfin_ethernet_name: eth0
 Bring up the hardware of Elfin. Before bringing up the hardware, you should setup Linux with PREEMPT_RT properly. There is a [tutorial](https://wiki.linuxfoundation.org/realtime/documentation/howto/applications/preemptrt_setup). There are two versions of elfin EtherCAT slaves. Please bring up the hardware accordingly.
 
 ```sh
-$ sudo chrt 10 bash
-$ ros2 launch elfin3_ros2_moveit2 elfin3_moveit.launch.py
+sudo chrt 10 bash
+ros2 launch elfin3_ros2_moveit2 elfin3_moveit.launch.py
 ```
 
 Start up RViz with a configuration including the MoveIt! Motion Planning plugin:
 ```sh
-$ sudo su
-$ ros2 launch elfin3_ros2_moveit2 elfin3_moveit_rviz.launch.py
+sudo su
+ros2 launch elfin3_ros2_moveit2 elfin3_moveit_rviz.launch.py
 ```
 Start up elfin basic api:
 ```sh
-$ sudo su
-$ ros2 launch elfin3_ros2_moveit2 elfin3_basic_api.launch.py
+sudo su
+ros2 launch elfin3_ros2_moveit2 elfin3_basic_api.launch.py
 ```
 Start up "Elfin Control Panel" interface:
 ```sh
-$ sudo su
-$ ros2 launch elfin_basic_api elfin_gui.launch.py
+sudo su
+ros2 launch elfin_basic_api elfin_gui.launch.py
 ```
 
 Enable the servos of Elfin with "Elfin Control Panel" interface: if there is no "Warning", just press the "Servo On" button to enable the robot. If there is "Warning", press the "Clear Fault" button first and then press the "Servo On" button.
