@@ -94,6 +94,8 @@ Put the file *elfin_drivers.yaml*, that you got from the vendor, into the folder
 
 Connect Elfin to the computer with a LAN cable. Then confirm the ethernet interface name of the connection with `ifconfig`. The default ethernet name is eth0. If the ethernet name is not eth0, you should correct the following line in the file *elfin_robot_bringup/config/elfin_arm_control.yaml* 
 
+> **Which "LAN" port?** This cable must go to the arm's EtherCAT port. Control-box models have a separate cabinet LAN port that speaks Han's TCP/IP API (default TCP 10003); the joint drives sit behind that cabinet's own EtherCAT master, so this repository's SOEM driver cannot see them through it. See step 2 under [Docker](#docker) for the adapter/wiring details.
+
 ```
 elfin_ethernet_name: eth0
 ```
@@ -168,7 +170,9 @@ Before starting the hardware connection:
    ip -br link
    ```
 
-2. Put the vendor-provided `elfin_drivers.yaml` in `elfin_robot_bringup/config/`. Configure `elfin_robot_bringup/config/elfin_arm_control.yaml` with the correct NIC name and the robot-specific values supplied by the vendor. **The repository's checked-in YAML contains example values; do not assume they are correct for your arm.** Configure the host network and PREEMPT_RT as required by the vendor, and review the launch configuration before powering the robot.
+2. EtherCAT reaches the joint drives directly, so the arm must be connected **without the vendor control box in the path**. Use the Han's Robot *Elfin cable adapter* (the "body/cabinet adapter" in their *ROS Control* manual) to break out the arm's EtherCAT interface and 48 V supply; the control box cuts power to the arm after a while without its watchdog messages, and two masters cannot share the same chain. A direct cable, or a gigabit switch between the arm and the host, both work. The power side is 42–54 V DC with at least 19 A peak (for example a Mean Well RSP-1000-48); adapter pins are 1 = +48 V, 2 = −48 V, 3 = GND, 4 = unused. **Add an emergency-stop switch in the 48 V line**, because bypassing the cabinet also bypasses its E-stop. No IP address is required on the EtherCAT NIC. `No slaves are found on <nic>` (or `wkc = -1`) means the drives are not visible: wrong NIC, the control box or a filtered/isolated switch port in the path, or the arm is not powered. A quick way to identify the control box: if the arm address answers TCP port 10003 (Han's remote API), the joint drives are behind that controller and SOEM will never enumerate through it. If the slaves enumerate but later drop, the vendor's fix is to enable Simulation mode on the pendant.
+
+3. Put the vendor-provided `elfin_drivers.yaml` in `elfin_robot_bringup/config/`. Configure `elfin_robot_bringup/config/elfin_arm_control.yaml` with the correct NIC name and the robot-specific values supplied by the vendor. **The repository's checked-in YAML contains example values; do not assume they are correct for your arm.** Configure the host network and PREEMPT_RT as required by the vendor, and review the launch configuration before powering the robot.
 
 Switch from the normal desktop container to the hardware network setup from the repository root on the host:
 
@@ -177,18 +181,14 @@ docker compose down
 docker compose -f compose.yaml -f compose.hardware.yaml up --build -d
 ```
 
-With host networking, open the desktop at <http://localhost:6080/>. Because the container shares the host network, it runs its VNC server on display `:2` (RFB 5902) and noVNC on port 6080 by default, avoiding a host VNC server on `:1`/5901 and the privileged port 80. Override with `VNC_DISPLAY` or `NOVNC_PORT` if those are also in use. In separate terminals inside the desktop, launch the hardware controller, MoveIt/RViz, API, and control panel in this order. Source the ROS and workspace setup in each terminal:
+With host networking, open the desktop at <http://localhost:6080/>. Because the container shares the host network, it runs its VNC server on display `:2` (RFB 5902) and noVNC on port 6080 by default, avoiding a host VNC server on `:1`/5901 and the privileged port 80. Override with `VNC_DISPLAY` or `NOVNC_PORT` if those are also in use. In separate terminals inside the desktop, launch the hardware controller, MoveIt/RViz, API, and control panel in this order. Source the ROS and workspace setup in each terminal, and run the hardware processes as root because SOEM needs raw-socket access:
 
 ```sh
-source /opt/ros/foxy/setup.bash
-source /opt/elfin_ws/install/setup.bash
-ros2 launch elfin5_ros2_moveit2 elfin5_moveit.launch.py
+sudo bash -c 'source /opt/ros/foxy/setup.bash && source /opt/elfin_ws/install/setup.bash && ros2 launch elfin5_ros2_moveit2 elfin5_moveit.launch.py'
 ```
 
 ```sh
-source /opt/ros/foxy/setup.bash
-source /opt/elfin_ws/install/setup.bash
-ros2 launch elfin5_ros2_moveit2 elfin5_moveit_rviz.launch.py
+sudo bash -c 'source /opt/ros/foxy/setup.bash && source /opt/elfin_ws/install/setup.bash && ros2 launch elfin5_ros2_moveit2 elfin5_moveit_rviz.launch.py'
 ```
 
 ```sh
