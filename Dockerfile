@@ -4,7 +4,13 @@ COPY --from=ghcr.io/astral-sh/uv:0.13.7 /uv /uvx /bin/
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ENV ROS_DISTRO=foxy \
-    DEBIAN_FRONTEND=noninteractive
+    DEBIAN_FRONTEND=noninteractive \
+    LANG=en_US.UTF-8 \
+    LANGUAGE=en_US:en \
+    LC_ALL=en_US.UTF-8
+
+RUN sed -i 's/^# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+    locale-gen en_US.UTF-8
 
 # Foxy matches the Ubuntu 20.04 environment currently documented by this repo.
 # Include the simulation, MoveIt, ros2_control, and Elfin desktop API dependencies.
