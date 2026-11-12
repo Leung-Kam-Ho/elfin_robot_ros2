@@ -49,7 +49,7 @@ class ElfinTcpAdapter(Node):
         self.declare_parameter("allow_motion", False)
         self.declare_parameter("connect_timeout_sec", 3.0)
         self.declare_parameter("response_timeout_sec", 2.0)
-        self.declare_parameter("state_publish_rate_hz", 5.0)
+        self.declare_parameter("state_publish_rate_hz", 20.0)
         self.declare_parameter("motion_timeout_sec", 120.0)
         self.declare_parameter("max_waypoint_lateness_sec", 0.5)
         self.declare_parameter("move_state_poll_period_sec", 0.1)
@@ -75,7 +75,6 @@ class ElfinTcpAdapter(Node):
         self._action_group = ReentrantCallbackGroup()
         self._active_goal_lock = threading.Lock()
         self._active_goal = False
-        self._motion_active = threading.Event()
         self._last_state_error = None
         self.joint_state_pub = self.create_publisher(JointState, "/joint_states", 10)
         self._action_server = ActionServer(
@@ -190,7 +189,6 @@ class ElfinTcpAdapter(Node):
         result = FollowJointTrajectory.Result()
         trajectory = goal_handle.request.trajectory
         motion_started = False
-        self._motion_active.set()
         try:
             self._check_robot_ready()
             actual_deg = self.client.request(
@@ -268,7 +266,6 @@ class ElfinTcpAdapter(Node):
                     raise ProtocolError("ReadMoveState returned no state")
                 state_value = int(move_state[0])
                 if state_value == 0:
-                    self._motion_active.clear()
                     self.publish_state()
                     goal_handle.succeed()
                     result.error_code = FollowJointTrajectory.Result.SUCCESSFUL
@@ -288,7 +285,6 @@ class ElfinTcpAdapter(Node):
             result.error_string = str(exc)
             return result
         finally:
-            self._motion_active.clear()
             with self._active_goal_lock:
                 self._active_goal = False
 
@@ -299,8 +295,6 @@ class ElfinTcpAdapter(Node):
             self.get_logger().error(f"Could not send TCP stop command: {exc}")
 
     def publish_state(self):
-        if self._motion_active.is_set():
-            return
         try:
             positions_deg = self.client.request(
                 f"ReadAcsActualPos,{self.robot_id},;"

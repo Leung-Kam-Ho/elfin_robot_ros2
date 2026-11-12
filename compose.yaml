@@ -15,5 +15,5 @@ services:
       PASSWORD: ${VNC_PASSWORD:-ubuntu}
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
     volumes:
-      - ./elfin_robot_bringup/config:/opt/elfin_ws/install/share/elfin_robot_bringup/config:ro
+      - .:/opt/elfin_ws/src/elfin_robot_ros2:ro
     restart: unless-stopped

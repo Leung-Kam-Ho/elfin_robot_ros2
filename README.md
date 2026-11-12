@@ -227,6 +227,8 @@ Verify that actual joint states are arriving before enabling motion:
 ros2 topic echo /joint_states
 ```
 
+The adapter polls actual joint positions at 20 Hz, including while a trajectory is running. State reads and motion requests share the protocol's single serialized TCP connection, so feedback traffic can add some waypoint latency.
+
 The adapter does not power the arm or enable servos. Confirm the controller reports normal status and enable the servos through the teach pendant using your site's safety procedure. Only then, after clearing the work area and verifying the emergency stop, explicitly enable trajectory execution by restarting the launch with:
 
 ```sh
@@ -235,5 +237,11 @@ ros2 launch elfin_tcp_driver elfin5_tcp_moveit.launch.py \
 ```
 
 The adapter maps trajectory waypoints to the protocol's `MoveBJ` endpoint-update command and waits for the controller's motion state. TCP execution is **not hard real-time**, and it does not reproduce the EtherCAT driver's timing/servo behavior; validate at low speed and do not use it for high-rate servoing or safety-critical motion. The existing Elfin Control Panel's EtherCAT servo-control path is not replaced by this adapter.
+
+The Docker image uses `colcon build --symlink-install`, and Compose mounts the repository source read-only into the container. Edits to Python and launch files on the host are visible in the running container; restart the affected ROS process to load them. C++ changes still need recompilation. The workspace is root-owned in the image, so rebuild it from a desktop terminal with `sudo`:
+
+```sh
+sudo bash -lc 'cd /opt/elfin_ws && source /opt/ros/foxy/setup.bash && colcon build --merge-install --symlink-install --packages-select elfin_description elfin_robot_msgs soem_ros2 elfin_ethercat_driver elfin_ros_control elfin_robot_bringup elfin5_ros2_gazebo elfin5_ros2_moveit2 elfin_tcp_driver elfin_basic_api --cmake-args -DBUILD_TESTING=OFF'
+```
 
 If Gazebo or another GUI application opens blank, the upstream image documents `seccomp=unconfined` as a workaround for some Docker environments. This weakens container isolation; apply it only to a trusted local image and only if needed.

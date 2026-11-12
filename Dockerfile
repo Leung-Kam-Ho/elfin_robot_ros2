@@ -48,7 +48,7 @@ WORKDIR /opt/elfin_ws
 COPY . /opt/elfin_ws/src/elfin_robot_ros2
 
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
-    colcon build --merge-install --packages-select \
+    colcon build --merge-install --symlink-install --packages-select \
         elfin_description \
         elfin_robot_msgs \
         soem_ros2 \
