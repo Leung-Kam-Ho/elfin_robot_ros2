@@ -17,7 +17,7 @@
 # elfin_ros_control:
 /**:
     ros__parameters:
-        elfin_ethernet_name: enp2s0
+        elfin_ethernet_name: enP7s7
 
 #        elfin:
         slave_no: [1, 2, 3]

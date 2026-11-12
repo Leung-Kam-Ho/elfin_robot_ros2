@@ -158,12 +158,51 @@ ros2 launch elfin5_ros2_moveit2 elfin5_basic_api.launch.py
 ros2 launch elfin_basic_api fake_elfin_gui.launch.py
 ```
 
-The image also builds the EtherCAT and hardware-control packages. **The container only starts the desktop; it does not automatically connect to or move a real robot.** For a real Elfin5, use a Linux host (Docker Desktop on macOS cannot provide direct EtherCAT access), install/configure the vendor driver YAML in `elfin_robot_bringup/config/`, configure the host's robot-connected NIC and PREEMPT_RT as required by the hardware vendor, and review the launch configuration before powering the robot. To prepare the container for manual hardware bringup, use the hardware network override:
+The image also builds the EtherCAT and hardware-control packages. **The container only starts the desktop; it does not automatically connect to or move a real robot.** Direct EtherCAT access requires a Linux host; Docker Desktop on macOS cannot provide it.
+
+Before starting the hardware connection:
+
+1. Connect the robot to the Linux host and identify the host interface connected to the robot:
+
+   ```sh
+   ip -br link
+   ```
+
+2. Put the vendor-provided `elfin_drivers.yaml` in `elfin_robot_bringup/config/`. Configure `elfin_robot_bringup/config/elfin_arm_control.yaml` with the correct NIC name and the robot-specific values supplied by the vendor. **The repository's checked-in YAML contains example values; do not assume they are correct for your arm.** Configure the host network and PREEMPT_RT as required by the vendor, and review the launch configuration before powering the robot.
+
+Switch from the normal desktop container to the hardware network setup from the repository root on the host:
 
 ```sh
+docker compose down
 docker compose -f compose.yaml -f compose.hardware.yaml up --build -d
 ```
 
-Host networking exposes the desktop on host port 80 and grants raw-network and realtime scheduling capabilities. Use it only on a trusted, isolated host/network. Follow the [real-hardware setup](#usage-with-real-hardware) and verify the robot is in a safe state before enabling servos. The container does not provide hard realtime guarantees.
+With host networking, open the desktop at <http://localhost:80/>. In separate terminals inside the desktop, launch the hardware controller, MoveIt/RViz, API, and control panel in this order. Source the ROS and workspace setup in each terminal:
+
+```sh
+source /opt/ros/foxy/setup.bash
+source /opt/elfin_ws/install/setup.bash
+ros2 launch elfin5_ros2_moveit2 elfin5_moveit.launch.py
+```
+
+```sh
+source /opt/ros/foxy/setup.bash
+source /opt/elfin_ws/install/setup.bash
+ros2 launch elfin5_ros2_moveit2 elfin5_moveit_rviz.launch.py
+```
+
+```sh
+source /opt/ros/foxy/setup.bash
+source /opt/elfin_ws/install/setup.bash
+ros2 launch elfin5_ros2_moveit2 elfin5_basic_api.launch.py
+```
+
+```sh
+source /opt/ros/foxy/setup.bash
+source /opt/elfin_ws/install/setup.bash
+ros2 launch elfin_basic_api elfin_gui.launch.py
+```
+
+Host networking exposes the desktop on host port 80 and grants raw-network and realtime scheduling capabilities. Use it only on a trusted, isolated host/network. Verify the robot is in a safe state and the area is clear before enabling servos; the container does not provide hard realtime guarantees. Follow the [real-hardware setup](#usage-with-real-hardware) for the vendor-specific setup and safety steps.
 
 If Gazebo or another GUI application opens blank, the upstream image documents `seccomp=unconfined` as a workaround for some Docker environments. This weakens container isolation; apply it only to a trusted local image and only if needed.
