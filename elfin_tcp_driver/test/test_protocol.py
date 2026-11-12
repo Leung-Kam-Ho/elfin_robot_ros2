@@ -2,7 +2,11 @@ import socketserver
 import threading
 import unittest
 
-from elfin_tcp_driver.protocol import HansRobotTcpClient, ProtocolError
+from elfin_tcp_driver.protocol import (
+    HansRobotTcpClient,
+    ProtocolError,
+    format_digital_output_command,
+)
 
 
 class _ProtocolHandler(socketserver.StreamRequestHandler):
@@ -53,6 +57,26 @@ class TcpProtocolTest(unittest.TestCase):
     def test_robot_failure_reply_raises_protocol_error(self):
         with self.assertRaisesRegex(ProtocolError, "1010"):
             self.client.request("BadCommand,;")
+
+    def test_formats_supported_digital_output_banks(self):
+        self.assertEqual(
+            format_digital_output_command("robot", 0, 2, 1),
+            "SetOutIOState,0,2,1,;",
+        )
+        self.assertEqual(
+            format_digital_output_command("config", 0, 2, 0),
+            "SetConfigDO,2,0,;",
+        )
+        self.assertEqual(
+            format_digital_output_command("serial", 0, 2, 1),
+            "SetSerialDO,2,1,;",
+        )
+
+    def test_rejects_invalid_digital_output_values(self):
+        with self.assertRaisesRegex(ValueError, "non-negative"):
+            format_digital_output_command("robot", 0, -1, 0)
+        with self.assertRaisesRegex(ValueError, "0 or 1"):
+            format_digital_output_command("robot", 0, 1, 2)
 
 
 if __name__ == "__main__":

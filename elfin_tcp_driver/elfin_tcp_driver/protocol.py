@@ -9,6 +9,26 @@ class ProtocolError(RuntimeError):
     """Raised when the robot returns an invalid or failed protocol reply."""
 
 
+def format_digital_output_command(io_type, robot_id, io_index, state):
+    """Build a HansRobot digital-output command for a configured output."""
+    io_type = str(io_type).lower()
+    io_index = int(io_index)
+    state = int(state)
+    robot_id = int(robot_id)
+    if io_index < 0:
+        raise ValueError("Digital output index must be non-negative")
+    if state not in (0, 1):
+        raise ValueError("Digital output state must be 0 or 1")
+
+    if io_type == "robot":
+        return f"SetOutIOState,{robot_id},{io_index},{state},;"
+    if io_type == "config":
+        return f"SetConfigDO,{io_index},{state},;"
+    if io_type == "serial":
+        return f"SetSerialDO,{io_index},{state},;"
+    raise ValueError("io_type must be 'robot', 'config', or 'serial'")
+
+
 class HansRobotTcpClient:
     """Keep one serialized TCP session and read complete semicolon messages."""
 

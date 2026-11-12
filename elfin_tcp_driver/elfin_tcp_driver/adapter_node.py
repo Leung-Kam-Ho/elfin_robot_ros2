@@ -16,8 +16,13 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
+from std_srvs.srv import SetBool
 
-from elfin_tcp_driver.protocol import HansRobotTcpClient, ProtocolError
+from elfin_tcp_driver.protocol import (
+    HansRobotTcpClient,
+    ProtocolError,
+    format_digital_output_command,
+)
 
 
 JOINT_NAMES = [
@@ -47,6 +52,12 @@ class ElfinTcpAdapter(Node):
         self.declare_parameter("robot_port", 10003)
         self.declare_parameter("robot_id", 0)
         self.declare_parameter("allow_motion", False)
+        self.declare_parameter("allow_gripper", False)
+        self.declare_parameter("gripper_io_type", "robot")
+        self.declare_parameter("gripper_open_output", -1)
+        self.declare_parameter("gripper_close_output", -1)
+        self.declare_parameter("gripper_open_active_state", 1)
+        self.declare_parameter("gripper_close_active_state", 1)
         self.declare_parameter("connect_timeout_sec", 3.0)
         self.declare_parameter("response_timeout_sec", 2.0)
         self.declare_parameter("state_publish_rate_hz", 20.0)
@@ -56,6 +67,26 @@ class ElfinTcpAdapter(Node):
 
         self.robot_id = int(self.get_parameter("robot_id").value)
         self.allow_motion = bool(self.get_parameter("allow_motion").value)
+        self.allow_gripper = bool(self.get_parameter("allow_gripper").value)
+        self.gripper_io_type = str(self.get_parameter("gripper_io_type").value).lower()
+        self.gripper_open_output = int(
+            self.get_parameter("gripper_open_output").value
+        )
+        self.gripper_close_output = int(
+            self.get_parameter("gripper_close_output").value
+        )
+        self.gripper_open_active_state = int(
+            self.get_parameter("gripper_open_active_state").value
+        )
+        self.gripper_close_active_state = int(
+            self.get_parameter("gripper_close_active_state").value
+        )
+        if self.gripper_io_type not in ("robot", "config", "serial"):
+            raise ValueError("gripper_io_type must be robot, config, or serial")
+        if self.gripper_open_active_state not in (0, 1):
+            raise ValueError("gripper_open_active_state must be 0 or 1")
+        if self.gripper_close_active_state not in (0, 1):
+            raise ValueError("gripper_close_active_state must be 0 or 1")
         self.motion_timeout_sec = float(
             self.get_parameter("motion_timeout_sec").value
         )
@@ -75,6 +106,7 @@ class ElfinTcpAdapter(Node):
         self._action_group = ReentrantCallbackGroup()
         self._active_goal_lock = threading.Lock()
         self._active_goal = False
+        self._active_gripper_command = False
         self._last_state_error = None
         self.joint_state_pub = self.create_publisher(JointState, "/joint_states", 10)
         self._action_server = ActionServer(
@@ -84,6 +116,12 @@ class ElfinTcpAdapter(Node):
             execute_callback=self.execute_callback,
             goal_callback=self.goal_callback,
             cancel_callback=self.cancel_callback,
+            callback_group=self._action_group,
+        )
+        self._gripper_service = self.create_service(
+            SetBool,
+            "elfin_gripper/set",
+            self.gripper_callback,
             callback_group=self._action_group,
         )
 
@@ -100,6 +138,16 @@ class ElfinTcpAdapter(Node):
             self.get_logger().warning(
                 "Read-only mode: FollowJointTrajectory goals are rejected. "
                 "Set allow_motion:=true only after validating the setup."
+            )
+        if self.allow_gripper:
+            self.get_logger().warning(
+                "TCP gripper output control is ENABLED. Verify output indices and "
+                "tool wiring before calling /elfin_gripper/set."
+            )
+        else:
+            self.get_logger().info(
+                "Gripper output control is disabled; set allow_gripper:=true "
+                "after configuring the correct digital outputs."
             )
         self.get_logger().info(
             "Elfin TCP adapter targeting "
@@ -121,11 +169,85 @@ class ElfinTcpAdapter(Node):
             self.get_logger().error(f"Rejecting invalid trajectory: {exc}")
             return GoalResponse.REJECT
         with self._active_goal_lock:
-            if self._active_goal:
-                self.get_logger().warning("Rejecting goal: another trajectory is active")
+            if self._active_goal or self._active_gripper_command:
+                self.get_logger().warning(
+                    "Rejecting goal: another arm or gripper command is active"
+                )
                 return GoalResponse.REJECT
             self._active_goal = True
         return GoalResponse.ACCEPT
+
+    def gripper_callback(self, request, response):
+        if not self.allow_gripper:
+            response.success = False
+            response.message = "Gripper control is disabled (allow_gripper is false)"
+            return response
+        if (
+            self.gripper_open_output < 0
+            or self.gripper_close_output < 0
+            or self.gripper_open_output == self.gripper_close_output
+        ):
+            response.success = False
+            response.message = (
+                "Configure distinct non-negative gripper_open_output and "
+                "gripper_close_output indices"
+            )
+            return response
+
+        with self._active_goal_lock:
+            if self._active_goal or self._active_gripper_command:
+                response.success = False
+                response.message = "Robot is executing another arm or gripper command"
+                return response
+            self._active_gripper_command = True
+
+        try:
+            self._check_gripper_ready()
+            # De-energize the opposite coil before activating the requested one.
+            # The protocol has no atomic two-output transaction.
+            if request.data:
+                self._set_gripper_output(
+                    self.gripper_open_output, 1 - self.gripper_open_active_state
+                )
+                self._set_gripper_output(
+                    self.gripper_close_output, self.gripper_close_active_state
+                )
+                response.message = "Gripper close output commanded"
+            else:
+                self._set_gripper_output(
+                    self.gripper_close_output, 1 - self.gripper_close_active_state
+                )
+                self._set_gripper_output(
+                    self.gripper_open_output, self.gripper_open_active_state
+                )
+                response.message = "Gripper open output commanded"
+            response.success = True
+        except (ProtocolError, OSError, ValueError) as exc:
+            response.success = False
+            response.message = str(exc)
+            self.get_logger().error(f"Gripper command failed: {exc}")
+        finally:
+            with self._active_goal_lock:
+                self._active_gripper_command = False
+        return response
+
+    def _check_gripper_ready(self):
+        dcs = self.client.request("ReadDCSStatus,;")
+        if len(dcs) != 1 or int(dcs[0]) != 10:
+            raise ProtocolError(f"DCS is not normal (ReadDCSStatus={dcs})")
+        state = self.client.request(f"ReadRobotState,{self.robot_id},;")
+        if len(state) < 8:
+            raise ProtocolError(f"Malformed ReadRobotState response: {state}")
+        if int(state[0]) != 0:
+            raise ProtocolError("Robot is moving; refusing a gripper command")
+        if int(state[2]) != 0:
+            raise ProtocolError(f"Robot reports an error (ReadRobotState={state})")
+
+    def _set_gripper_output(self, output_index, state):
+        command = format_digital_output_command(
+            self.gripper_io_type, self.robot_id, output_index, state
+        )
+        self.client.request(command)
 
     def cancel_callback(self, _goal_handle):
         return CancelResponse.ACCEPT
