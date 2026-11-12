@@ -1,0 +1,15 @@
+services:
+  elfin5:
+    network_mode: host
+    ports: !reset []
+    cap_add:
+      - NET_RAW
+      - SYS_NICE
+      - IPC_LOCK
+    ulimits:
+      rtprio:
+        soft: 99
+        hard: 99
+      memlock:
+        soft: -1
+        hard: -1

@@ -130,3 +130,40 @@ Every time you want to plan a trajectory, you should set the start state to curr
 Before turning the robot off, you should press the "Servo Off" button to disable the robot.
 
 For more information about API, see [docs/API_description_english.md](docs/API_description_english.md)
+
+---
+
+### Elfin5 Docker desktop
+
+The Docker image uses the [Tiryoh ROS 2 Desktop VNC](https://github.com/Tiryoh/docker-ros2-desktop-vnc) Foxy image for its browser-based Ubuntu desktop. Foxy is used because this repository documents Ubuntu 20.04 + ROS Foxy as its tested setup; Foxy is end-of-life, so this image is intended to reproduce the repository's existing environment rather than provide a current ROS distribution.
+
+Build and start the desktop from the repository root:
+
+```sh
+docker compose up --build -d
+```
+
+Open <http://localhost:6080/>. The default VNC password is `ubuntu`; set `VNC_PASSWORD` before starting to change it. On Apple Silicon, the Compose file defaults to `linux/amd64` and uses Docker's emulation, which can be slower. To try a native image where the upstream base and ROS packages are available, set `DOCKER_PLATFORM=linux/arm64`.
+
+In a terminal inside the desktop, launch the Elfin5 Gazebo + MoveIt simulation:
+
+```sh
+ros2 launch elfin5_ros2_moveit2 elfin5.launch.py
+```
+
+To start the Elfin API and simulated control panel, open another terminal for each command:
+
+```sh
+ros2 launch elfin5_ros2_moveit2 elfin5_basic_api.launch.py
+ros2 launch elfin_basic_api fake_elfin_gui.launch.py
+```
+
+The image also builds the EtherCAT and hardware-control packages. **The container only starts the desktop; it does not automatically connect to or move a real robot.** For a real Elfin5, use a Linux host (Docker Desktop on macOS cannot provide direct EtherCAT access), install/configure the vendor driver YAML in `elfin_robot_bringup/config/`, configure the host's robot-connected NIC and PREEMPT_RT as required by the hardware vendor, and review the launch configuration before powering the robot. To prepare the container for manual hardware bringup, use the hardware network override:
+
+```sh
+docker compose -f compose.yaml -f compose.hardware.yaml up --build -d
+```
+
+Host networking exposes the desktop on host port 80 and grants raw-network and realtime scheduling capabilities. Use it only on a trusted, isolated host/network. Follow the [real-hardware setup](#usage-with-real-hardware) and verify the robot is in a safe state before enabling servos. The container does not provide hard realtime guarantees.
+
+If Gazebo or another GUI application opens blank, the upstream image documents `seccomp=unconfined` as a workaround for some Docker environments. This weakens container isolation; apply it only to a trusted local image and only if needed.
