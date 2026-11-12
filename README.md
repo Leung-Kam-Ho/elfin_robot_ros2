@@ -143,7 +143,7 @@ Build and start the desktop from the repository root:
 docker compose up --build -d
 ```
 
-Open <http://localhost:6080/>. The default VNC password is `ubuntu`; set `VNC_PASSWORD` before starting to change it. On Apple Silicon, the Compose file defaults to `linux/amd64` and uses Docker's emulation, which can be slower. To try a native image where the upstream base and ROS packages are available, set `DOCKER_PLATFORM=linux/arm64`.
+Open <http://localhost:6080/>. The default VNC password is `ubuntu`; set `VNC_PASSWORD` before starting to change it. By default the image builds for your host architecture, because the upstream base image provides both amd64 and arm64 variants. To force a different platform (for example, `linux/amd64` under emulation on Apple Silicon), set `DOCKER_PLATFORM=linux/amd64` when building and running.
 
 In a terminal inside the desktop, launch the Elfin5 Gazebo + MoveIt simulation:
 
@@ -177,7 +177,7 @@ docker compose down
 docker compose -f compose.yaml -f compose.hardware.yaml up --build -d
 ```
 
-With host networking, open the desktop at <http://localhost:80/>. In separate terminals inside the desktop, launch the hardware controller, MoveIt/RViz, API, and control panel in this order. Source the ROS and workspace setup in each terminal:
+With host networking, open the desktop at <http://localhost:6080/>. Because the container shares the host network, it runs its VNC server on display `:2` (RFB 5902) and noVNC on port 6080 by default, avoiding a host VNC server on `:1`/5901 and the privileged port 80. Override with `VNC_DISPLAY` or `NOVNC_PORT` if those are also in use. In separate terminals inside the desktop, launch the hardware controller, MoveIt/RViz, API, and control panel in this order. Source the ROS and workspace setup in each terminal:
 
 ```sh
 source /opt/ros/foxy/setup.bash

@@ -2,6 +2,12 @@ services:
   elfin5:
     network_mode: host
     ports: !reset []
+    # With host networking the container shares the host's VNC display and
+    # ports. Use display :2 / noVNC 6080 so a host VNC server on :1 (5901) and
+    # the privileged port 80 do not conflict.
+    environment:
+      VNC_DISPLAY: ${VNC_DISPLAY:-2}
+      NOVNC_PORT: ${NOVNC_PORT:-6080}
     cap_add:
       - NET_RAW
       - SYS_NICE

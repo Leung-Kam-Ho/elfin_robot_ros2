@@ -5,7 +5,9 @@ services:
       dockerfile: Dockerfile
     image: elfin5-ros2:foxy
     container_name: elfin5-ros2
-    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    # Defaults to the host architecture (the upstream base image ships amd64 and
+    # arm64 variants). Set DOCKER_PLATFORM, e.g. linux/amd64, to force a platform.
+    platform: ${DOCKER_PLATFORM:-}
     ports:
       - "127.0.0.1:6080:80"
     shm_size: 1gb

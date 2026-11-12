@@ -26,6 +26,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN uv pip install --system --no-cache transforms3d
 
+# The upstream entrypoint hardcodes VNC display :1 (RFB 5901) and noVNC on port
+# 80. With host networking those collide with a host VNC server on :1 and with
+# the host's unprivileged port range (port 80 is privileged there), so make both
+# configurable while keeping the upstream defaults.
+RUN sed -i \
+        -e '1a VNC_DISPLAY=${VNC_DISPLAY:-1}\nNOVNC_PORT=${NOVNC_PORT:-80}\nVNC_RFB_PORT=$((5900 + VNC_DISPLAY))' \
+        -e 's|\.X1-lock|.X$VNC_DISPLAY-lock|g' \
+        -e 's|\.X11-unix/X1|.X11-unix/X$VNC_DISPLAY|g' \
+        -e 's|vncserver :1|vncserver :$VNC_DISPLAY|g' \
+        -e 's|websockify --web=/usr/lib/novnc 80 localhost:5901|websockify --web=/usr/lib/novnc $NOVNC_PORT localhost:$VNC_RFB_PORT|g' \
+        /entrypoint.sh
+
 WORKDIR /opt/elfin_ws
 COPY . /opt/elfin_ws/src/elfin_robot_ros2
 
