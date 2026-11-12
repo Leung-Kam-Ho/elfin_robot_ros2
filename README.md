@@ -207,7 +207,7 @@ Host networking exposes the desktop on host port 80 and grants raw-network and r
 
 ### TCP protocol adapter (Mac/Linux)
 
-The repository's original real-hardware ROS driver uses EtherCAT. The `elfin_tcp_driver` package is a separate adapter for the HansRobot ASCII TCP protocol. It connects as a TCP client to the robot's configured server and exposes the MoveIt `FollowJointTrajectory` action expected by the Elfin5 MoveIt configuration. TCP is ordinary IP networking, so this path does not use `compose.hardware.yaml` or require raw Ethernet access. The Docker host/container must still be able to route to the controller IP.
+The repository's original real-hardware ROS driver uses EtherCAT. The `elfin_tcp_driver` package is a separate adapter for the HansRobot ASCII TCP protocol. It connects as a TCP client to the robot's configured server and exposes the MoveIt `FollowJointTrajectory` action expected by the Elfin5 MoveIt configuration. TCP is ordinary IP networking, so this path does not use `compose.hardware.yaml` or require raw Ethernet access. The Docker host/container must still be able to route to the controller IP. Close any interactive `nc` session before launching the adapter; the controller may accept only one client at a time.
 
 Rebuild the image, start the normal desktop container, and in a desktop terminal launch the TCP-backed MoveIt setup in **read-only mode** first:
 
