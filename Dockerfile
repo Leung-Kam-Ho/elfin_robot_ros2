@@ -57,6 +57,7 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
         elfin_robot_bringup \
         elfin5_ros2_gazebo \
         elfin5_ros2_moveit2 \
+        elfin_tcp_driver \
         elfin_basic_api \
         --cmake-args -DBUILD_TESTING=OFF
 

@@ -205,4 +205,35 @@ ros2 launch elfin_basic_api elfin_gui.launch.py
 
 Host networking exposes the desktop on host port 80 and grants raw-network and realtime scheduling capabilities. Use it only on a trusted, isolated host/network. Verify the robot is in a safe state and the area is clear before enabling servos; the container does not provide hard realtime guarantees. Follow the [real-hardware setup](#usage-with-real-hardware) for the vendor-specific setup and safety steps.
 
+### TCP protocol adapter (Mac/Linux)
+
+The repository's original real-hardware ROS driver uses EtherCAT. The `elfin_tcp_driver` package is a separate adapter for the HansRobot ASCII TCP protocol. It connects as a TCP client to the robot's configured server and exposes the MoveIt `FollowJointTrajectory` action expected by the Elfin5 MoveIt configuration. TCP is ordinary IP networking, so this path does not use `compose.hardware.yaml` or require raw Ethernet access. The Docker host/container must still be able to route to the controller IP.
+
+Rebuild the image, start the normal desktop container, and in a desktop terminal launch the TCP-backed MoveIt setup in **read-only mode** first:
+
+```sh
+docker compose build
+docker compose up -d
+```
+
+```sh
+ros2 launch elfin_tcp_driver elfin5_tcp_moveit.launch.py \
+  robot_ip:=192.168.1.63 robot_port:=10003
+```
+
+Verify that actual joint states are arriving before enabling motion:
+
+```sh
+ros2 topic echo /joint_states
+```
+
+The adapter does not power the arm or enable servos. Confirm the controller reports normal status and enable the servos through the teach pendant using your site's safety procedure. Only then, after clearing the work area and verifying the emergency stop, explicitly enable trajectory execution by restarting the launch with:
+
+```sh
+ros2 launch elfin_tcp_driver elfin5_tcp_moveit.launch.py \
+  robot_ip:=192.168.1.63 robot_port:=10003 allow_motion:=true
+```
+
+The adapter maps trajectory waypoints to the protocol's `MoveBJ` endpoint-update command and waits for the controller's motion state. TCP execution is **not hard real-time**, and it does not reproduce the EtherCAT driver's timing/servo behavior; validate at low speed and do not use it for high-rate servoing or safety-critical motion. The existing Elfin Control Panel's EtherCAT servo-control path is not replaced by this adapter.
+
 If Gazebo or another GUI application opens blank, the upstream image documents `seccomp=unconfined` as a workaround for some Docker environments. This weakens container isolation; apply it only to a trusted local image and only if needed.
