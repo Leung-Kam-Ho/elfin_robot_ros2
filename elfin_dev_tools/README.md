@@ -133,5 +133,5 @@ ROS-aware environment.
 The ROS 2 packages remain colcon packages. `elfin_tcp_driver` is an
 `ament_python` package that imports rclpy and ROS message types, which are
 supplied by the ROS installation rather than PyPI, so uv cannot install it.
-`elfin_web_api` is a workspace member but is synced into its own
-system-site-packages environment inside the container.
+The API source is under `elfin_web_api/`; Docker installs its Flask dependency
+from the root lockfile into an environment that can also see ROS's `rclpy`.
