@@ -9,7 +9,8 @@ services:
     # arm64 variants). Set DOCKER_PLATFORM, e.g. linux/amd64, to force a platform.
     platform: ${DOCKER_PLATFORM:-}
     ports:
-      - "127.0.0.1:6080:80"
+      - "6080:80"
+      - "${ELFIN_JOINT_API_PORT:-5001}:${ELFIN_JOINT_API_PORT:-5001}"
     shm_size: 1gb
     environment:
       PASSWORD: ${VNC_PASSWORD:-ubuntu}
@@ -19,6 +20,9 @@ services:
       ELFIN_TCP_ROBOT_PORT: "${ELFIN_TCP_ROBOT_PORT:-10003}"
       ELFIN_TCP_ALLOW_MOTION: "${ELFIN_TCP_ALLOW_MOTION:-false}"
       ELFIN_TCP_ALLOW_GRIPPER: "${ELFIN_TCP_ALLOW_GRIPPER:-false}"
+      ELFIN_JOINT_API_AUTOSTART: "${ELFIN_JOINT_API_AUTOSTART:-false}"
+      ELFIN_JOINT_API_PORT: "${ELFIN_JOINT_API_PORT:-5001}"
+      ELFIN_JOINT_STATE_MAX_AGE: "${ELFIN_JOINT_STATE_MAX_AGE:-2.0}"
     volumes:
       - .:/opt/elfin_ws/src/elfin_robot_ros2:ro
     restart: unless-stopped

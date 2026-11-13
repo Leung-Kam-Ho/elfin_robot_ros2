@@ -238,6 +238,38 @@ docker compose build
 docker compose up -d
 ```
 
+#### Joint-state HTTP API
+
+The `elfin_web_api` package exposes the live `/joint_states` message over HTTP for dashboards, scripts, or other local clients. It is a Flask app managed with [uv](https://docs.astral.sh/uv/), and it runs inside the container so rclpy can see the same ROS graph as the TCP adapter. See [elfin_web_api/README.md](elfin_web_api/README.md) for response fields and local (non-Docker) usage.
+
+Start it manually in the running container, or set `ELFIN_JOINT_API_AUTOSTART=true` in `.env` to have supervisor start it with the desktop:
+
+```sh
+docker compose exec elfin5 /usr/local/bin/elfin_web_api.sh
+```
+
+The Compose file publishes the API on port `5001` (`ELFIN_JOINT_API_PORT`). Once the TCP adapter is publishing state:
+
+```sh
+curl -s http://localhost:5001/api/joint-state | python3 -m json.tool
+curl -s http://localhost:5001/healthz
+```
+
+`GET /api/joint-state` returns joint names, positions in radians and degrees, and the message timestamp. It returns HTTP 503 until the first message arrives or when the newest message is older than `ELFIN_JOINT_STATE_MAX_AGE` seconds (default `2.0`), which makes a stopped adapter or missing robot connection visible instead of serving stale data.
+
+```json
+{
+  "stale": false,
+  "age_sec": 0.031,
+  "names": ["elfin_joint1", "elfin_joint2", "elfin_joint3",
+            "elfin_joint4", "elfin_joint5", "elfin_joint6"],
+  "positions_deg": [0.0, -30.0, 0.0, 0.0, 0.0, 0.0],
+  "positions": [0.0, -0.5236, 0.0, 0.0, 0.0, 0.0]
+}
+```
+
+Override `ELFIN_JOINT_API_PORT` or `ELFIN_JOINT_STATE_MAX_AGE` in `.env` if needed, then recreate with `docker compose up -d --force-recreate`. The API is read-only and uses Flask's development server; keep the port bound to localhost.
+
 #### Auto-start MoveIt with the desktop
 
 The Docker image adds an optional TCP MoveIt program to the upstream entrypoint's supervisor configuration. It starts after the VNC display is available and is **off by default**. To enable it, add these values to the Compose `.env` file:

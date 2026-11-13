@@ -1,0 +1,14 @@
+[project]
+name = "elfin-web-api"
+version = "0.1.0"
+description = "Flask HTTP API for the Elfin robot's live joint state"
+requires-python = ">=3.8"
+dependencies = [
+    "flask>=3.0,<4",
+]
+
+[tool.uv]
+# The service is a plain application, not a distributable package. rclpy is
+# provided by the sourced ROS 2 installation, so the environment created for
+# this project must be made with --system-site-packages.
+package = false

@@ -37,10 +37,12 @@ RUN uv pip install --system --no-cache transforms3d
 COPY docker/elfin_tcp_autostart.sh /usr/local/bin/elfin_tcp_autostart.sh
 COPY docker/elfin_tcp_tui_autostart.sh /usr/local/bin/elfin_tcp_tui_autostart.sh
 COPY docker/elfin_tcp_tui.sh /usr/local/bin/elfin_tcp_tui.sh
+COPY docker/elfin_web_api.sh /usr/local/bin/elfin_web_api.sh
 RUN chmod 755 \
         /usr/local/bin/elfin_tcp_autostart.sh \
         /usr/local/bin/elfin_tcp_tui_autostart.sh \
-        /usr/local/bin/elfin_tcp_tui.sh
+        /usr/local/bin/elfin_tcp_tui.sh \
+        /usr/local/bin/elfin_web_api.sh
 
 # Add the optional ROS process after the upstream entrypoint creates the VNC
 # and noVNC supervisor programs. Keep the upstream desktop initialization intact.
@@ -72,6 +74,19 @@ startsecs=0
 EOF
 fi
 
+if [[ "${ELFIN_JOINT_API_AUTOSTART:-false}" == "true" ]]; then
+cat << EOF >> "$CONF_PATH"
+[program:elfin_joint_api]
+command=/usr/local/bin/elfin_web_api.sh
+user=$USER
+environment=HOME="$HOME",DISPLAY=":$VNC_DISPLAY",XAUTHORITY="$HOME/.Xauthority",ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}",ELFIN_JOINT_API_HOST="0.0.0.0",ELFIN_JOINT_API_PORT="${ELFIN_JOINT_API_PORT:-5001}"
+autostart=true
+autorestart=true
+priority=1002
+startsecs=1
+EOF
+fi
+
 '''
 if text.count(marker) != 1:
     raise SystemExit("Could not find the expected insertion point in /entrypoint.sh")
@@ -92,6 +107,13 @@ RUN sed -i \
 
 WORKDIR /app
 COPY . .
+
+# Build the Flask API's uv environment. rclpy comes from the sourced ROS 2
+# installation in the system interpreter, so expose it with
+# --system-site-packages while Flask is installed from PyPI.
+RUN cd /app/elfin_web_api && \
+    uv venv --system-site-packages .venv && \
+    uv sync --frozen --no-install-project --no-cache
 
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     colcon build --merge-install --symlink-install --packages-select \
