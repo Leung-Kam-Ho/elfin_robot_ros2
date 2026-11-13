@@ -35,11 +35,13 @@ RUN uv pip install --system --no-cache transforms3d
 # Launch the TCP-backed MoveIt session from the container entrypoint's
 # supervisord configuration. The program is opt-in through Compose env vars.
 COPY docker/elfin_tcp_autostart.sh /usr/local/bin/elfin_tcp_autostart.sh
+COPY docker/elfin_tcp_moveit.sh /usr/local/bin/elfin_tcp_moveit.sh
 COPY docker/elfin_tcp_tui_autostart.sh /usr/local/bin/elfin_tcp_tui_autostart.sh
 COPY docker/elfin_tcp_tui.sh /usr/local/bin/elfin_tcp_tui.sh
 COPY docker/elfin_web_api.sh /usr/local/bin/elfin_web_api.sh
 RUN chmod 755 \
         /usr/local/bin/elfin_tcp_autostart.sh \
+        /usr/local/bin/elfin_tcp_moveit.sh \
         /usr/local/bin/elfin_tcp_tui_autostart.sh \
         /usr/local/bin/elfin_tcp_tui.sh \
         /usr/local/bin/elfin_web_api.sh

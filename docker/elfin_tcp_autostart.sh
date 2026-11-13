@@ -24,12 +24,6 @@ fi
 export DISPLAY=":${display_number}"
 export XAUTHORITY="${HOME}/.Xauthority"
 
-source "/opt/ros/${ROS_DISTRO:-foxy}/setup.bash"
-source /app/install/setup.bash
-
-echo "Starting Elfin TCP MoveIt with motion=${ELFIN_TCP_ALLOW_MOTION:-false}, gripper=${ELFIN_TCP_ALLOW_GRIPPER:-false}"
-exec ros2 launch elfin_tcp_driver elfin5_tcp_moveit.launch.py \
-    "robot_ip:=${ELFIN_TCP_ROBOT_IP:-192.168.1.63}" \
-    "robot_port:=${ELFIN_TCP_ROBOT_PORT:-10003}" \
-    "allow_motion:=${ELFIN_TCP_ALLOW_MOTION:-false}" \
-    "allow_gripper:=${ELFIN_TCP_ALLOW_GRIPPER:-false}"
+echo "Opening Elfin TCP MoveIt in Terminator with motion=${ELFIN_TCP_ALLOW_MOTION:-false}, gripper=${ELFIN_TCP_ALLOW_GRIPPER:-false}"
+exec /usr/bin/terminator --no-dbus --title="Elfin TCP MoveIt" \
+    --execute /usr/local/bin/elfin_tcp_moveit.sh
