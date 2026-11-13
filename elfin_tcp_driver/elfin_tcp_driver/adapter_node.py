@@ -25,7 +25,6 @@ from elfin_tcp_driver.protocol import (
     clamp,
     format_robotiq_command,
     parse_robotiq_moving,
-    parse_robotiq_position,
 )
 
 
@@ -60,7 +59,6 @@ class ElfinTcpAdapter(Node):
         self.declare_parameter("gripper_speed", 250)
         self.declare_parameter("gripper_default_force", 10)
         self.declare_parameter("gripper_motion_timeout_sec", 15.0)
-        self.declare_parameter("gripper_position_tolerance_deg", 1.0)
         self.declare_parameter("connect_timeout_sec", 3.0)
         self.declare_parameter("response_timeout_sec", 2.0)
         self.declare_parameter("state_publish_rate_hz", 20.0)
@@ -78,21 +76,11 @@ class ElfinTcpAdapter(Node):
         self.gripper_motion_timeout_sec = float(
             self.get_parameter("gripper_motion_timeout_sec").value
         )
-        self.gripper_position_tolerance_deg = float(
-            self.get_parameter("gripper_position_tolerance_deg").value
-        )
         if (
             not math.isfinite(self.gripper_motion_timeout_sec)
             or self.gripper_motion_timeout_sec <= 0
         ):
             raise ValueError("gripper_motion_timeout_sec must be positive and finite")
-        if (
-            not math.isfinite(self.gripper_position_tolerance_deg)
-            or self.gripper_position_tolerance_deg < 0
-        ):
-            raise ValueError(
-                "gripper_position_tolerance_deg must be non-negative and finite"
-            )
         self.motion_timeout_sec = float(
             self.get_parameter("motion_timeout_sec").value
         )
@@ -128,12 +116,6 @@ class ElfinTcpAdapter(Node):
             SetRobotiq,
             "elfin_gripper/move",
             self.move_gripper_callback,
-            callback_group=self._action_group,
-        )
-        self._gripper_read_service = self.create_service(
-            Trigger,
-            "elfin_gripper/read_position",
-            self.read_gripper_position_callback,
             callback_group=self._action_group,
         )
         self._gripper_reset_service = self.create_service(
@@ -216,7 +198,6 @@ class ElfinTcpAdapter(Node):
             self._active_gripper_command = True
         motion_started = False
         try:
-            self._check_gripper_ready()
             target_position = clamp(request.position, 0, 140)
             requested_speed = request.speed if request.speed > 0 else self.gripper_speed
             requested_force = (
@@ -229,24 +210,12 @@ class ElfinTcpAdapter(Node):
 
             deadline = time.monotonic() + self.gripper_motion_timeout_sec
             while time.monotonic() < deadline:
-                moving = parse_robotiq_moving(
-                    self.client.request("RobotiqStatus,;")
-                )
-                position = parse_robotiq_position(
-                    self.client.request("ReadRobotiqPosition,;")
-                )
+                moving = parse_robotiq_moving(self.client.request("RobotiqStatus,;"))
                 if not moving:
-                    response.position = float(position)
-                    response.reached_goal = (
-                        abs(position - target_position)
-                        <= self.gripper_position_tolerance_deg
-                    )
-                    response.stalled = not response.reached_goal
                     response.success = True
                     response.message = (
-                        "Robotiq reached the requested position"
-                        if response.reached_goal
-                        else "Robotiq stopped before the target; possible object contact"
+                        "Robotiq stopped; commanded target was "
+                        f"{target_position:g} degrees (position feedback is disabled)"
                     )
                     return response
                 time.sleep(self.move_state_poll_period_sec)
@@ -254,8 +223,6 @@ class ElfinTcpAdapter(Node):
             raise ProtocolError("Timed out waiting for Robotiq motion to complete")
         except (ProtocolError, OSError, ValueError) as exc:
             response.success = False
-            response.reached_goal = False
-            response.stalled = False
             self.get_logger().error(
                 f"Robotiq command failed: {exc}"
                 + (
@@ -270,18 +237,6 @@ class ElfinTcpAdapter(Node):
             with self._active_goal_lock:
                 self._active_gripper_command = False
 
-    def read_gripper_position_callback(self, _request, response):
-        try:
-            position = parse_robotiq_position(
-                self.client.request("ReadRobotiqPosition,;")
-            )
-            response.success = True
-            response.message = f"{position:g} degrees"
-        except (ProtocolError, OSError, ValueError) as exc:
-            response.success = False
-            response.message = str(exc)
-        return response
-
     def reset_gripper_callback(self, _request, response):
         if not self.allow_gripper:
             response.success = False
@@ -294,7 +249,6 @@ class ElfinTcpAdapter(Node):
                 return response
             self._active_gripper_command = True
         try:
-            self._check_gripper_ready()
             self.client.request("RobotIQReset,;")
             response.success = True
             response.message = "Robotiq reset command sent"
@@ -305,18 +259,6 @@ class ElfinTcpAdapter(Node):
             with self._active_goal_lock:
                 self._active_gripper_command = False
         return response
-
-    def _check_gripper_ready(self):
-        dcs = self.client.request("ReadDCSStatus,;")
-        if len(dcs) != 1 or int(dcs[0]) != 10:
-            raise ProtocolError(f"DCS is not normal (ReadDCSStatus={dcs})")
-        state = self.client.request(f"ReadRobotState,{self.robot_id},;")
-        if len(state) < 8:
-            raise ProtocolError(f"Malformed ReadRobotState response: {state}")
-        if int(state[0]) != 0:
-            raise ProtocolError("Robot is moving; refusing a gripper command")
-        if int(state[2]) != 0:
-            raise ProtocolError(f"Robot reports an error (ReadRobotState={state})")
 
     def cancel_callback(self, _goal_handle):
         return CancelResponse.ACCEPT

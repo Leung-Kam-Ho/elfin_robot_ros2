@@ -35,7 +35,12 @@ RUN uv pip install --system --no-cache transforms3d
 # Launch the TCP-backed MoveIt session from the container entrypoint's
 # supervisord configuration. The program is opt-in through Compose env vars.
 COPY docker/elfin_tcp_autostart.sh /usr/local/bin/elfin_tcp_autostart.sh
-RUN chmod 755 /usr/local/bin/elfin_tcp_autostart.sh
+COPY docker/elfin_tcp_tui_autostart.sh /usr/local/bin/elfin_tcp_tui_autostart.sh
+COPY docker/elfin_tcp_tui.sh /usr/local/bin/elfin_tcp_tui.sh
+RUN chmod 755 \
+        /usr/local/bin/elfin_tcp_autostart.sh \
+        /usr/local/bin/elfin_tcp_tui_autostart.sh \
+        /usr/local/bin/elfin_tcp_tui.sh
 
 # Add the optional ROS process after the upstream entrypoint creates the VNC
 # and noVNC supervisor programs. Keep the upstream desktop initialization intact.
@@ -55,6 +60,14 @@ environment=HOME="$HOME",DISPLAY=":$VNC_DISPLAY",XAUTHORITY="$HOME/.Xauthority"
 autostart=true
 autorestart=false
 priority=1000
+startsecs=0
+[program:elfin_tcp_tui]
+command=/usr/local/bin/elfin_tcp_tui_autostart.sh
+user=$USER
+environment=HOME="$HOME",DISPLAY=":$VNC_DISPLAY",XAUTHORITY="$HOME/.Xauthority"
+autostart=true
+autorestart=false
+priority=1001
 startsecs=0
 EOF
 fi

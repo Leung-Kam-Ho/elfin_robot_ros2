@@ -183,7 +183,7 @@ The adapter maps trajectory waypoints to the protocol's `MoveBJ` endpoint-update
 
 #### TCP Robotiq gripper control
 
-The adapter uses the controller's Robotiq TCP commands: `SetRobotiq`, `ReadRobotiqPosition`, `RobotiqStatus`, and `RobotIQReset`. Position is in degrees and clamped to `0–140`; speed is clamped to `30–250`; force is clamped to `10–125`. The Elfin5 MoveIt model currently represents the gripper as a fixed dummy link, so this is a direct ROS service, not a gripper joint planned by MoveIt.
+The adapter uses the controller's Robotiq TCP commands: `SetRobotiq`, `RobotiqStatus`, and `RobotIQReset`. Position is in degrees and clamped to `0–140`; speed is clamped to `30–250`; force is clamped to `10–125`. It does not query `ReadRobotiqPosition`; the TUI displays the last commanded target, not measured position. The Elfin5 MoveIt model currently represents the gripper as a fixed dummy link, so this is a direct ROS service, not a gripper joint planned by MoveIt.
 
 Gripper control is disabled by default. To enable **only** the gripper, leaving arm trajectory motion disabled, launch:
 
@@ -207,14 +207,11 @@ The gripper command service is `/elfin_gripper/move`. It accepts a target positi
 ros2 service call /elfin_gripper/move elfin_robot_msgs/srv/SetRobotiq \
   "{position: 70.0, speed: 250.0, force: 25.0}"
 
-# Read current position
-ros2 service call /elfin_gripper/read_position std_srvs/srv/Trigger "{}"
-
 # Reset the gripper
 ros2 service call /elfin_gripper/reset std_srvs/srv/Trigger "{}"
 ```
 
-The adapter checks DCS and arm state before gripper motion. The move service waits for the gripper to stop and returns its measured position, whether it reached the target, and whether it stopped early (for example, on an object). The supplied protocol commands do not include a gripper stop command; a timeout reports failure but cannot guarantee the gripper stopped. Verify the Robotiq interface, direction (which endpoint is open), and force behavior at low speed with the work area clear before use. Physical gripper behavior has not been tested here.
+The gripper path does not check DCS, arm state, or actual gripper position. It still requires `allow_gripper:=true` and rejects commands while this adapter has an arm or gripper command active. The move service waits for `RobotiqStatus` to report that motion stopped; the returned message identifies the commanded target, not a measured angle. The supplied protocol commands do not include a gripper stop command; a timeout reports failure but cannot guarantee the gripper stopped. Verify the Robotiq interface, direction (which endpoint is open), and force behavior at low speed with the work area clear before use. Physical gripper behavior has not been tested here.
 
 #### Terminal UI
 
@@ -225,7 +222,7 @@ ros2 run elfin_tcp_driver elfin5_robot_tui --ros-args \
   -p enable_arm_commands:=true -p enable_gripper_commands:=true
 ```
 
-The dashboard displays actual arm joint positions and polls the gripper position. Press `j` to enter six target joint angles; pressing Enter submits them to MoveIt for planning and execution at 10% velocity/acceleration scaling. Press `g` to enter gripper angle, speed, and force; Enter submits the command. A blank entry cancels either prompt. Press `r` to reset the gripper immediately, `s` to cancel an active arm goal, and `q` to quit. The UI validates Elfin5 joint limits; gripper position must be 0–140°, speed 30–250, and force 10–125. Gripper movement cannot be canceled through the supplied TCP commands. Use a terminal large enough for the dashboard and keep the physical E-stop accessible.
+The dashboard displays actual arm joint positions and the last commanded gripper target (not sensor feedback). Press `j` to enter six target joint angles; pressing Enter submits them to MoveIt for planning and execution at 10% velocity/acceleration scaling. Press `g` to enter gripper angle, speed, and force; Enter submits the command. Press `t` to toggle the TUI's internal target between 0° and 140° using the configured default speed and force. The first `t` press targets 140°; after a successful move, the next press targets the opposite endpoint. This toggle does not read the gripper angle. A blank entry cancels either prompt. Press `r` to reset the gripper immediately, `s` to cancel an active arm goal, and `q` to quit. The UI validates Elfin5 joint limits; gripper position must be 0–140°, speed 30–250, and force 10–125. Gripper movement cannot be canceled through the supplied TCP commands. Use a terminal large enough for the dashboard and keep the physical E-stop accessible.
 
 This feature adds a ROS service interface and a console executable, so rebuild/recreate the image once before first use:
 
@@ -250,7 +247,7 @@ The robot address and port default to `192.168.1.63:10003`; override them with `
 docker compose up -d --build
 ```
 
-When the container starts, its entrypoint launches TCP MoveIt and RViz once the VNC display socket is ready. Output is written to `~/.ros/elfin_tcp_moveit.log` inside the container. Apply changes to `.env` with `docker compose up -d --build --force-recreate`. `ELFIN_TCP_AUTOSTART=true` does not power on the arm or enable servos, but the motion/gripper gates make commands available to ROS clients on the configured ROS domain. Only enable them on a trusted network and when that behavior is intended. To disable autostart or either command gate, set the corresponding `.env` value to `false` and recreate the container.
+When the container starts, its entrypoint launches TCP MoveIt and RViz once the VNC display socket is ready, then opens the TUI in a Terminator window. MoveIt output is written to `~/.ros/elfin_tcp_moveit.log` inside the container. The TUI's arm and gripper command gates follow `ELFIN_TCP_ALLOW_MOTION` and `ELFIN_TCP_ALLOW_GRIPPER`. Apply changes to `.env` with `docker compose up -d --build --force-recreate`. `ELFIN_TCP_AUTOSTART=true` does not power on the arm or enable servos, but the motion/gripper gates make commands available to ROS clients on the configured ROS domain. Only enable them on a trusted network and when that behavior is intended. To disable autostart or either command gate, set the corresponding `.env` value to `false` and recreate the container.
 
 The Docker image uses `colcon build --symlink-install`, and Compose mounts the repository source read-only into the container. Edits to Python and launch files on the host are visible in the running container; restart the affected ROS process to load them. C++ changes still need recompilation. The workspace is root-owned in the image, so rebuild it from a desktop terminal with `sudo`:
 

@@ -7,7 +7,6 @@ from elfin_tcp_driver.protocol import (
     ProtocolError,
     format_robotiq_command,
     parse_robotiq_moving,
-    parse_robotiq_position,
 )
 
 
@@ -71,7 +70,6 @@ class TcpProtocolTest(unittest.TestCase):
         )
 
     def test_robotiq_position_and_status_responses(self):
-        self.assertEqual(parse_robotiq_position(["72"]), 72.0)
         self.assertTrue(parse_robotiq_moving(["0", "3", "1", "1"]))
         self.assertFalse(parse_robotiq_moving(["3", "3", "1", "1"]))
         self.assertFalse(parse_robotiq_moving(["2", "3", "1", "1"]))
@@ -81,8 +79,6 @@ class TcpProtocolTest(unittest.TestCase):
             format_robotiq_command(float("nan"))
         with self.assertRaisesRegex(ProtocolError, "Unexpected RobotiqStatus"):
             parse_robotiq_moving(["9", "9", "9", "9"])
-        with self.assertRaisesRegex(ProtocolError, "outside 0-140"):
-            parse_robotiq_position(["141"])
 
 
 if __name__ == "__main__":

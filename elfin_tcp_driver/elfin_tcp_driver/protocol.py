@@ -26,21 +26,6 @@ def format_robotiq_command(position, speed=250, force=10):
     return f"SetRobotiq,{position_text},{speed},{force},;"
 
 
-def parse_robotiq_position(fields):
-    """Parse the payload returned by ReadRobotiqPosition."""
-    if not fields:
-        raise ProtocolError("ReadRobotiqPosition returned no position")
-    try:
-        position = float(fields[0])
-    except (TypeError, ValueError) as exc:
-        raise ProtocolError(
-            f"Invalid ReadRobotiqPosition response: {fields}"
-        ) from exc
-    if not math.isfinite(position) or position < 0 or position > 140:
-        raise ProtocolError(f"Robotiq position is outside 0-140 degrees: {position}")
-    return position
-
-
 def parse_robotiq_moving(fields):
     """Return the moving state encoded by RobotiqStatus."""
     try:

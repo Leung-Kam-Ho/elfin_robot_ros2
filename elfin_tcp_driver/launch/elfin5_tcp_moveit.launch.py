@@ -27,9 +27,6 @@ def generate_launch_description():
     gripper_speed = LaunchConfiguration("gripper_speed")
     gripper_default_force = LaunchConfiguration("gripper_default_force")
     gripper_motion_timeout_sec = LaunchConfiguration("gripper_motion_timeout_sec")
-    gripper_position_tolerance_deg = LaunchConfiguration(
-        "gripper_position_tolerance_deg"
-    )
     rviz = LaunchConfiguration("rviz")
 
     xacro_path = os.path.join(
@@ -115,9 +112,6 @@ def generate_launch_description():
             DeclareLaunchArgument("gripper_speed", default_value="250"),
             DeclareLaunchArgument("gripper_default_force", default_value="10"),
             DeclareLaunchArgument("gripper_motion_timeout_sec", default_value="15.0"),
-            DeclareLaunchArgument(
-                "gripper_position_tolerance_deg", default_value="1.0"
-            ),
             DeclareLaunchArgument("rviz", default_value="true"),
             Node(
                 package="elfin_tcp_driver",
@@ -140,9 +134,6 @@ def generate_launch_description():
                         ),
                         "gripper_motion_timeout_sec": ParameterValue(
                             gripper_motion_timeout_sec, value_type=float
-                        ),
-                        "gripper_position_tolerance_deg": ParameterValue(
-                            gripper_position_tolerance_deg, value_type=float
                         ),
                     }
                 ],

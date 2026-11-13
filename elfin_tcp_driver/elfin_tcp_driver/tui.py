@@ -51,13 +51,15 @@ class ElfinRobotTui(Node):
         self._callbacks = ReentrantCallbackGroup()
         self._lock = threading.Lock()
         self._joint_positions = {}
-        self._gripper_position = None
+        self._gripper_commanded_position = None
+        # The toggle is a UI-side target sequence, independent of encoder reads.
+        # Begin by commanding 140 degrees on the first toggle press.
+        self._next_gripper_toggle_target = 140.0
+        self._pending_gripper_target = None
         self._message = "Waiting for robot state..."
         self._arm_pending = False
         self._active_arm_goal = None
         self._gripper_pending = False
-        self._gripper_read_pending = False
-        self._last_gripper_read = 0.0
 
         self._joint_state_sub = self.create_subscription(
             JointState, "/joint_states", self._joint_state_callback, 10
@@ -71,11 +73,6 @@ class ElfinRobotTui(Node):
         self._gripper_move_client = self.create_client(
             SetRobotiq,
             "/elfin_gripper/move",
-            callback_group=self._callbacks,
-        )
-        self._gripper_read_client = self.create_client(
-            Trigger,
-            "/elfin_gripper/read_position",
             callback_group=self._callbacks,
         )
         self._gripper_reset_client = self.create_client(
@@ -102,32 +99,11 @@ class ElfinRobotTui(Node):
         with self._lock:
             return (
                 dict(self._joint_positions),
-                self._gripper_position,
+                self._gripper_commanded_position,
                 self._message,
                 self._arm_pending,
                 self._gripper_pending,
             )
-
-    def _request_gripper_read(self):
-        if self._gripper_read_pending or not self._gripper_read_client.service_is_ready():
-            return
-        self._gripper_read_pending = True
-        future = self._gripper_read_client.call_async(Trigger.Request())
-        future.add_done_callback(self._gripper_read_done)
-
-    def _gripper_read_done(self, future):
-        try:
-            response = future.result()
-            if not response.success:
-                self._set_message(f"Gripper read failed: {response.message}")
-            else:
-                position = float(response.message.split()[0])
-                with self._lock:
-                    self._gripper_position = position
-        except Exception as exc:  # noqa: BLE001 - report middleware/service errors in the TUI
-            self._set_message(f"Gripper read failed: {exc}")
-        finally:
-            self._gripper_read_pending = False
 
     def _read_joint_goal(self, screen):
         values = self._prompt(
@@ -283,22 +259,42 @@ class ElfinRobotTui(Node):
         request.position = float(position)
         request.speed = float(speed)
         request.force = float(force)
+        with self._lock:
+            self._pending_gripper_target = float(position)
         self._gripper_move_client.call_async(request).add_done_callback(
             self._gripper_move_done
         )
+
+    def _toggle_gripper(self):
+        if not self.enable_gripper_commands:
+            self._set_message(
+                "Gripper commands disabled in TUI; enable_gripper_commands:=true"
+            )
+            return
+        with self._lock:
+            target_position = self._next_gripper_toggle_target
+        # Zero speed/force asks the adapter to use its configured defaults.
+        self._send_gripper_goal(target_position, 0.0, 0.0)
 
     def _gripper_move_done(self, future):
         try:
             response = future.result()
             message = response.message
             if response.success:
-                message += f" (actual: {response.position:.1f}°)"
+                with self._lock:
+                    commanded_target = self._pending_gripper_target
+                    self._gripper_commanded_position = commanded_target
+                    if commanded_target is not None:
+                        self._next_gripper_toggle_target = (
+                            0.0 if commanded_target > 70.0 else 140.0
+                        )
             else:
                 message = f"Gripper command failed: {message}"
         except Exception as exc:  # noqa: BLE001 - report middleware/service errors in the TUI
             message = f"Gripper command failed: {exc}"
         with self._lock:
             self._gripper_pending = False
+            self._pending_gripper_target = None
             self._message = message
 
     def _reset_gripper(self):
@@ -322,6 +318,10 @@ class ElfinRobotTui(Node):
         try:
             response = future.result()
             message = response.message if response.success else f"Reset failed: {response.message}"
+            if response.success:
+                with self._lock:
+                    self._gripper_commanded_position = None
+                    self._next_gripper_toggle_target = 140.0
         except Exception as exc:  # noqa: BLE001 - report middleware/service errors in the TUI
             message = f"Reset failed: {exc}"
         with self._lock:
@@ -350,10 +350,6 @@ class ElfinRobotTui(Node):
         screen.keypad(True)
         screen.timeout(100)
         while rclpy.ok():
-            now = time.monotonic()
-            if now - self._last_gripper_read >= 2.0:
-                self._last_gripper_read = now
-                self._request_gripper_read()
             self._draw(screen)
             key = screen.getch()
             if key == ord("q"):
@@ -362,6 +358,8 @@ class ElfinRobotTui(Node):
                 self._read_joint_goal(screen)
             elif key == ord("g"):
                 self._read_gripper_command(screen)
+            elif key == ord("t"):
+                self._toggle_gripper()
             elif key == ord("r"):
                 self._reset_gripper()
             elif key in (ord("s"), 3):
@@ -385,12 +383,17 @@ class ElfinRobotTui(Node):
         rows.extend(
             [
                 "",
-                "Robotiq position: "
-                + (f"{gripper_position:.1f}°" if gripper_position is not None else "unavailable"),
+                "Last gripper command: "
+                + (
+                    f"{gripper_position:.1f}° (not sensor feedback)"
+                    if gripper_position is not None
+                    else "unknown (position read disabled)"
+                ),
                 f"Command state: arm={'busy' if arm_pending else 'idle'}, "
                 f"gripper={'busy' if gripper_pending else 'idle'}",
                 "",
-                "Keys: j=plan/execute joint target   g=gripper angle   r=reset gripper",
+                "Keys: j=arm target   g=gripper angle   t=toggle gripper 0/140 degrees",
+                "      r=reset gripper",
                 "      s=cancel active arm goal     q=quit",
                 "",
                 f"Status: {message}",
