@@ -1,4 +1,4 @@
-# elfin_tools
+# elfin_dev_tools
 
 Host-side CLI tools for the Elfin robot. This project **does not import ROS**; it
 reads state from the `elfin_web_api` Flask server over HTTP. It is intended to
@@ -6,7 +6,7 @@ run on a laptop (macOS, Linux, or Windows) while the robot stack runs in the
 Docker container.
 
 The first command is `elfin joint-state`. The HTTP client in
-`src/elfin_tools/api.py` is the intended base for future AI/automation tooling.
+`src/elfin_dev_tools/api.py` is the intended base for future AI/automation tooling.
 
 ## Setup
 
@@ -108,7 +108,7 @@ docker compose exec elfin5 /usr/local/bin/elfin_web_api.sh
 ## Using the client from Python
 
 ```python
-from elfin_tools import ElfinClient
+from elfin_dev_tools import ElfinClient
 
 with ElfinClient("http://localhost:5001") as client:
     state = client.joint_state()
@@ -124,7 +124,7 @@ uv run pytest
 ## Why this is a root uv project
 
 The repository root is the uv project for **host-side tooling**. Its only
-Python package is `elfin_tools`, so `uv run elfin ...` works without changing
+Python package is `elfin_dev_tools`, so `uv run elfin ...` works without changing
 directories, while `uv sync` never touches ROS or colcon.
 
 `elfin_web_api` remains a separate project because it runs inside ROS Foxy on

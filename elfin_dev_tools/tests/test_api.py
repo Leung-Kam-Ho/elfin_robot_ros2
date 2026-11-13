@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from elfin_tools.api import ElfinApiError, ElfinClient, JointStateUnavailable
+from elfin_dev_tools.api import ElfinApiError, ElfinClient, JointStateUnavailable
 
 JOINT_STATE = {
     "stale": False,

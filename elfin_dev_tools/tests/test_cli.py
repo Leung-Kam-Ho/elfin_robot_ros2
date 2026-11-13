@@ -1,6 +1,6 @@
 import pytest
 
-from elfin_tools.cli import _format_compact, _format_table, main
+from elfin_dev_tools.cli import _format_compact, _format_table, main
 
 PAYLOAD = {
     "stale": False,

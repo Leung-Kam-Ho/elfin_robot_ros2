@@ -1,4 +1,4 @@
-"""Allow ``python -m elfin_tools`` to behave like the ``elfin`` command."""
+"""Allow ``python -m elfin_dev_tools`` to behave like the ``elfin`` command."""
 
 from .cli import main
 

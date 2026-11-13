@@ -1,7 +1,7 @@
 Elfin Robot
 ======
 
-Chinese version of the README -> [click here](./README_cn.md)
+Chinese version of the README -> [click here](./README%20_cn.md)
 
 <p align="center">
   <img src="docs/images/elfin.png" />
@@ -40,6 +40,7 @@ ELFIN_TCP_ROBOT_IP=192.168.1.63
 ELFIN_TCP_ROBOT_PORT=10003
 ELFIN_JOINT_API_AUTOSTART=true
 ELFIN_JOINT_API_PORT=5001
+ELFIN_JOINT_STATE_MAX_AGE=2.0
 ```
 
 Change `ELFIN_TCP_ROBOT_IP` if the controller uses a different address.
@@ -89,7 +90,7 @@ uv run elfin health || echo "robot state is not ready"
 ```
 
 Use `--json` for the raw API response or `--json --watch` for JSON Lines. See
-[elfin_tools/README.md](elfin_tools/README.md) for all CLI options.
+[elfin_dev_tools/README.md](elfin_dev_tools/README.md) for all CLI options.
 
 ### 4. Optional: call the API directly
 
@@ -110,8 +111,8 @@ the newest message is older than `ELFIN_JOINT_STATE_MAX_AGE` seconds (default
 | Component | Runs where | Purpose |
 | --- | --- | --- |
 | `elfin_tcp_driver` | Docker | Talks to the controller over TCP; publishes `/joint_states`; exposes the MoveIt trajectory action, arm speed, and gripper services |
-| `elfin_web_api` | Docker | Flask bridge from `/joint_states` to HTTP on port `5001` |
-| `elfin_tools` | Host | `uv`-managed CLI; no ROS or rclpy required |
+| `elfin_web_api` | Docker | Flask bridge from `/joint_states` to HTTP (default port `5001`) |
+| `elfin_dev_tools` | Host | `uv`-managed CLI; no ROS or rclpy required |
 | RViz / MoveIt / TUI | Docker | Visualization and interactive control through the VNC desktop |
 
 The host CLI only needs `httpx` and talks to the API:
