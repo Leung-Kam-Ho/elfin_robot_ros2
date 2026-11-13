@@ -32,6 +32,39 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN uv pip install --system --no-cache transforms3d
 
+# Launch the TCP-backed MoveIt session from the container entrypoint's
+# supervisord configuration. The program is opt-in through Compose env vars.
+COPY docker/elfin_tcp_autostart.sh /usr/local/bin/elfin_tcp_autostart.sh
+RUN chmod 755 /usr/local/bin/elfin_tcp_autostart.sh
+
+# Add the optional ROS process after the upstream entrypoint creates the VNC
+# and noVNC supervisor programs. Keep the upstream desktop initialization intact.
+RUN python3 - <<'PY'
+from pathlib import Path
+
+entrypoint = Path("/entrypoint.sh")
+text = entrypoint.read_text()
+marker = "# clearup\nPASSWORD="
+program = '''# Optional Elfin TCP MoveIt autostart, after the VNC programs.
+if [[ "${ELFIN_TCP_AUTOSTART:-false}" == "true" ]]; then
+cat << EOF >> "$CONF_PATH"
+[program:elfin_tcp_moveit]
+command=/usr/local/bin/elfin_tcp_autostart.sh
+user=$USER
+environment=HOME="$HOME",DISPLAY=":$VNC_DISPLAY",XAUTHORITY="$HOME/.Xauthority"
+autostart=true
+autorestart=false
+priority=1000
+startsecs=0
+EOF
+fi
+
+'''
+if text.count(marker) != 1:
+    raise SystemExit("Could not find the expected insertion point in /entrypoint.sh")
+entrypoint.write_text(text.replace(marker, program + marker, 1))
+PY
+
 # The upstream entrypoint hardcodes VNC display :1 (RFB 5901) and noVNC on port
 # 80. With host networking those collide with a host VNC server on :1 and with
 # the host's unprivileged port range (port 80 is privileged there), so make both

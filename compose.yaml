@@ -14,6 +14,11 @@ services:
     environment:
       PASSWORD: ${VNC_PASSWORD:-ubuntu}
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      ELFIN_TCP_AUTOSTART: "${ELFIN_TCP_AUTOSTART:-false}"
+      ELFIN_TCP_ROBOT_IP: "${ELFIN_TCP_ROBOT_IP:-192.168.1.63}"
+      ELFIN_TCP_ROBOT_PORT: "${ELFIN_TCP_ROBOT_PORT:-10003}"
+      ELFIN_TCP_ALLOW_MOTION: "${ELFIN_TCP_ALLOW_MOTION:-false}"
+      ELFIN_TCP_ALLOW_GRIPPER: "${ELFIN_TCP_ALLOW_GRIPPER:-false}"
     volumes:
       - .:/opt/elfin_ws/src/elfin_robot_ros2:ro
     restart: unless-stopped

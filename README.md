@@ -234,6 +234,24 @@ docker compose build
 docker compose up -d
 ```
 
+#### Auto-start MoveIt with the desktop
+
+The Docker image adds an optional TCP MoveIt program to the upstream entrypoint's supervisor configuration. It starts after the VNC display is available and is **off by default**. To enable it, add these values to the Compose `.env` file:
+
+```dotenv
+ELFIN_TCP_AUTOSTART=true
+ELFIN_TCP_ALLOW_MOTION=true
+ELFIN_TCP_ALLOW_GRIPPER=true
+```
+
+The robot address and port default to `192.168.1.63:10003`; override them with `ELFIN_TCP_ROBOT_IP` and `ELFIN_TCP_ROBOT_PORT` if needed. Then run:
+
+```sh
+docker compose up -d --build
+```
+
+When the container starts, its entrypoint launches TCP MoveIt and RViz once the VNC display socket is ready. Output is written to `~/.ros/elfin_tcp_moveit.log` inside the container. Apply changes to `.env` with `docker compose up -d --build --force-recreate`. `ELFIN_TCP_AUTOSTART=true` does not power on the arm or enable servos, but the motion/gripper gates make commands available to ROS clients on the configured ROS domain. Only enable them on a trusted network and when that behavior is intended. To disable autostart or either command gate, set the corresponding `.env` value to `false` and recreate the container.
+
 The Docker image uses `colcon build --symlink-install`, and Compose mounts the repository source read-only into the container. Edits to Python and launch files on the host are visible in the running container; restart the affected ROS process to load them. C++ changes still need recompilation. The workspace is root-owned in the image, so rebuild it from a desktop terminal with `sudo`:
 
 ```sh
