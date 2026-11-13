@@ -12,14 +12,18 @@ create the uv environment with access to the system interpreter:
 
 ```sh
 source /opt/ros/foxy/setup.bash
-cd elfin_web_api
-uv venv --system-site-packages .venv
-uv sync
-.venv/bin/python app.py
+cd /path/to/elfin_robot_ros2
+uv venv --system-site-packages elfin_web_api/.venv
+UV_PROJECT_ENVIRONMENT=elfin_web_api/.venv \
+  uv sync --no-dev --no-install-project
+elfin_web_api/.venv/bin/python elfin_web_api/app.py
 ```
 
-Do not run a plain `uv sync` without `--system-site-packages`; the resulting
-environment would install Flask but could not import rclpy.
+The root `pyproject.toml` and `uv.lock` are the repository's only uv project
+metadata. The API uses the same locked Flask dependency in a dedicated
+environment so it can access ROS's system-provided rclpy. Do not run a plain
+`uv sync` without `--system-site-packages` for this service; the environment
+would install Flask but could not import rclpy.
 
 ## Running in Docker
 

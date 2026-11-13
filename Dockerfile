@@ -108,12 +108,14 @@ RUN sed -i \
 WORKDIR /app
 COPY . .
 
-# Build the Flask API's uv environment. rclpy comes from the sourced ROS 2
-# installation in the system interpreter, so expose it with
-# --system-site-packages while Flask is installed from PyPI.
-RUN cd /app/elfin_web_api && \
-    uv venv --system-site-packages .venv && \
-    uv sync --frozen --no-install-project --no-cache
+# Build the Flask API's uv environment from the root project and lockfile.
+# rclpy comes from the sourced ROS 2 installation in the system interpreter,
+# so expose it with --system-site-packages. Keep this venv under elfin_web_api
+# so it can see ROS while remaining separate from the host CLI environment.
+RUN cd /app && \
+    uv venv --system-site-packages elfin_web_api/.venv && \
+    UV_PROJECT_ENVIRONMENT=/app/elfin_web_api/.venv \
+        uv sync --frozen --no-dev --no-install-project --no-cache
 
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     colcon build --merge-install --symlink-install --packages-select \

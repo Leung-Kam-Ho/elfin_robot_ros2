@@ -121,6 +121,26 @@ The host CLI only needs `httpx` and talks to the API:
 ELFIN_API_URL=http://192.168.1.10:5001 uv run elfin joint-state
 ```
 
+### Python tooling
+
+The repository root is the single `elfin-robot` uv project. It manages the
+host CLI and Flask dependency used by the joint-state API:
+
+| Python component | Purpose |
+| --- | --- |
+| `elfin-robot` (root) | Host-side `elfin` CLI (`elfin_dev_tools` package) and shared Python dependencies |
+| `elfin_web_api` | API application code; its Flask dependency is locked at the root |
+
+`uv sync` from the root creates the host environment, so `uv run elfin ...` and
+`uv run pytest` work without changing directories. Docker uses the same root
+`uv.lock` to install the API dependencies into a separate environment with
+access to ROS's system `rclpy`. Install the CLI globally with `uv tool install .`.
+
+The ROS 2 packages are built by colcon, not uv. In particular,
+`elfin_tcp_driver` is an `ament_python` package that imports rclpy, which is
+provided by ROS rather than PyPI, so colcon remains responsible for building
+ROS packages.
+
 ---
 
 ## TCP protocol adapter
@@ -316,8 +336,9 @@ with `docker compose up -d --force-recreate`. The API is read-only and uses
 Flask's development server; restrict access to trusted networks. See
 [elfin_web_api/README.md](elfin_web_api/README.md) for local, non-Docker usage.
 
-The repository root is a separate `uv` project for host tooling. `uv sync` does
-not build ROS packages; colcon remains the ROS build system.
+The root `uv` project manages Python dependencies only; `uv sync` does not build
+ROS packages. colcon remains the ROS build system, including the `ament_python`
+TCP driver that depends on rclpy.
 
 ---
 

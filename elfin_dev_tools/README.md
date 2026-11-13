@@ -11,8 +11,9 @@ The first command is `elfin joint-state`. The HTTP client in
 ## Setup
 
 Run these commands from the **repository root**. The root `pyproject.toml`
-defines this host-side tool; it does not include the ROS packages or the
-container-side Flask API.
+defines the `elfin-robot` uv project, packages this CLI, and locks the Python
+dependencies used by both the CLI and `elfin_web_api`. ROS packages are built
+by colcon.
 
 ```sh
 uv sync
@@ -121,13 +122,16 @@ with ElfinClient("http://localhost:5001") as client:
 uv run pytest
 ```
 
-## Why this is a root uv project
+## Relationship to the root uv project
 
-The repository root is the uv project for **host-side tooling**. Its only
-Python package is `elfin_dev_tools`, so `uv run elfin ...` works without changing
-directories, while `uv sync` never touches ROS or colcon.
+The root `elfin-robot` project packages this CLI from `elfin_dev_tools/` and
+locks its dependencies together with Flask for `elfin_web_api`. One `uv sync`
+at the root installs the host dependencies, so `uv run elfin ...` works without
+changing directories. Docker uses that same lockfile for the API's separate
+ROS-aware environment.
 
-`elfin_web_api` remains a separate project because it runs inside ROS Foxy on
-Python 3.8 and needs rclpy from the system interpreter. Mixing it into the root
-project would tie host tooling to the container's Python version. A uv
-workspace can be added later if multiple host packages need a shared lockfile.
+The ROS 2 packages remain colcon packages. `elfin_tcp_driver` is an
+`ament_python` package that imports rclpy and ROS message types, which are
+supplied by the ROS installation rather than PyPI, so uv cannot install it.
+`elfin_web_api` is a workspace member but is synced into its own
+system-site-packages environment inside the container.
