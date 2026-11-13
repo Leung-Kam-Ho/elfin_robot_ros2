@@ -268,7 +268,20 @@ curl -s http://localhost:5001/healthz
 }
 ```
 
-Override `ELFIN_JOINT_API_PORT` or `ELFIN_JOINT_STATE_MAX_AGE` in `.env` if needed, then recreate with `docker compose up -d --force-recreate`. The API is read-only and uses Flask's development server; keep the port bound to localhost.
+Override `ELFIN_JOINT_API_PORT` or `ELFIN_JOINT_STATE_MAX_AGE` in `.env` if needed, then recreate with `docker compose up -d --force-recreate`. The API is read-only and uses Flask's development server; restrict access to trusted networks.
+
+#### Host-side CLI (no ROS)
+
+The repository root is also a uv project for host tooling, so commands run without changing directories. It only depends on `httpx` and talks to the HTTP API:
+
+```sh
+uv sync
+uv run elfin joint-state
+uv run elfin joint-state --watch --interval 0.2
+uv run elfin health
+```
+
+Use `--url` or `ELFIN_API_URL` to point at another host or port. See [elfin_tools/README.md](elfin_tools/README.md) for JSON output, watch mode, and exit codes. `uv sync` here does not build ROS packages; colcon remains the ROS build system.
 
 #### Auto-start MoveIt with the desktop
 
