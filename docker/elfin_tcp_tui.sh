@@ -2,7 +2,7 @@
 set -eo pipefail
 
 source "/opt/ros/${ROS_DISTRO:-foxy}/setup.bash"
-source /opt/elfin_ws/install/setup.bash
+source /app/install/setup.bash
 
 exec ros2 run elfin_tcp_driver elfin5_robot_tui --ros-args \
     -p "enable_arm_commands:=${ELFIN_TCP_ALLOW_MOTION:-false}" \

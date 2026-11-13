@@ -25,7 +25,7 @@ export DISPLAY=":${display_number}"
 export XAUTHORITY="${HOME}/.Xauthority"
 
 source "/opt/ros/${ROS_DISTRO:-foxy}/setup.bash"
-source /opt/elfin_ws/install/setup.bash
+source /app/install/setup.bash
 
 echo "Starting Elfin TCP MoveIt with motion=${ELFIN_TCP_ALLOW_MOTION:-false}, gripper=${ELFIN_TCP_ALLOW_GRIPPER:-false}"
 exec ros2 launch elfin_tcp_driver elfin5_tcp_moveit.launch.py \

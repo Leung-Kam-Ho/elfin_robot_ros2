@@ -90,8 +90,8 @@ RUN sed -i \
         -e 's|websockify --web=/usr/lib/novnc 80 localhost:5901|websockify --web=/usr/lib/novnc $NOVNC_PORT localhost:$VNC_RFB_PORT|g' \
         /entrypoint.sh
 
-WORKDIR /opt/elfin_ws
-COPY . /opt/elfin_ws/src/elfin_robot_ros2
+WORKDIR /app
+COPY . .
 
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     colcon build --merge-install --symlink-install --packages-select \
@@ -109,4 +109,4 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
 
 # The upstream image creates its desktop user at container startup, so add
 # workspace sourcing to the skeleton bashrc used for that account.
-RUN echo 'source /opt/elfin_ws/install/setup.bash' >> /etc/skel/.bashrc
+RUN echo 'source /app/install/setup.bash' >> /etc/skel/.bashrc

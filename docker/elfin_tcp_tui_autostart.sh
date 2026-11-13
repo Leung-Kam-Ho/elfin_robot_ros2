@@ -16,7 +16,7 @@ sleep 5
 export DISPLAY=":${display_number}"
 export XAUTHORITY="${HOME}/.Xauthority"
 source "/opt/ros/${ROS_DISTRO:-foxy}/setup.bash"
-source /opt/elfin_ws/install/setup.bash
+source /app/install/setup.bash
 
 exec /usr/bin/terminator --no-dbus --title="Elfin Robot Console" \
     --execute /usr/local/bin/elfin_tcp_tui.sh
