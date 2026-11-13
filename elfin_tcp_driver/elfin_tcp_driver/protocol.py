@@ -26,6 +26,15 @@ def format_robotiq_command(position, speed=250, force=10):
     return f"SetRobotiq,{position_text},{speed},{force},;"
 
 
+def format_robot_speed_override(robot_id, speed_percent):
+    """Format the controller's SetOverride command from a 1-100% speed value."""
+    speed_percent = float(speed_percent)
+    if not math.isfinite(speed_percent) or not 1 <= speed_percent <= 100:
+        raise ValueError("Robot speed must be between 1 and 100 percent")
+    ratio = speed_percent / 100.0
+    return f"SetOverride,{int(robot_id)},{ratio:.4f},;"
+
+
 def parse_robotiq_moving(fields):
     """Return the moving state encoded by RobotiqStatus."""
     try:

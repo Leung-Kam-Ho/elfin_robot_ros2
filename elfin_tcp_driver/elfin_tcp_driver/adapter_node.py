@@ -17,13 +17,14 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_srvs.srv import Trigger
-from elfin_robot_msgs.srv import SetRobotiq
+from elfin_robot_msgs.srv import SetFloat64, SetRobotiq
 
 from elfin_tcp_driver.protocol import (
     HansRobotTcpClient,
     ProtocolError,
     clamp,
     format_robotiq_command,
+    format_robot_speed_override,
     parse_robotiq_moving,
 )
 
@@ -101,6 +102,7 @@ class ElfinTcpAdapter(Node):
         self._active_goal_lock = threading.Lock()
         self._active_goal = False
         self._active_gripper_command = False
+        self._active_speed_command = False
         self._last_state_error = None
         self.joint_state_pub = self.create_publisher(JointState, "/joint_states", 10)
         self._action_server = ActionServer(
@@ -116,6 +118,12 @@ class ElfinTcpAdapter(Node):
             SetRobotiq,
             "elfin_gripper/move",
             self.move_gripper_callback,
+            callback_group=self._action_group,
+        )
+        self._arm_speed_service = self.create_service(
+            SetFloat64,
+            "elfin_arm/set_speed",
+            self.set_arm_speed_callback,
             callback_group=self._action_group,
         )
         self._gripper_reset_service = self.create_service(
@@ -169,13 +177,53 @@ class ElfinTcpAdapter(Node):
             self.get_logger().error(f"Rejecting invalid trajectory: {exc}")
             return GoalResponse.REJECT
         with self._active_goal_lock:
-            if self._active_goal or self._active_gripper_command:
+            if (
+                self._active_goal
+                or self._active_gripper_command
+                or self._active_speed_command
+            ):
                 self.get_logger().warning(
                     "Rejecting goal: another arm or gripper command is active"
                 )
                 return GoalResponse.REJECT
             self._active_goal = True
         return GoalResponse.ACCEPT
+
+    def set_arm_speed_callback(self, request, response):
+        if not self.allow_motion:
+            response.success = False
+            response.message = "Arm speed control is disabled (allow_motion is false)"
+            return response
+        if not math.isfinite(request.data) or not 1 <= request.data <= 100:
+            response.success = False
+            response.message = "Robot speed must be between 1 and 100 percent"
+            return response
+
+        with self._active_goal_lock:
+            if (
+                self._active_goal
+                or self._active_gripper_command
+                or self._active_speed_command
+            ):
+                response.success = False
+                response.message = "Robot is executing another arm or gripper command"
+                return response
+            self._active_speed_command = True
+
+        try:
+            self.client.request(
+                format_robot_speed_override(self.robot_id, request.data)
+            )
+            response.success = True
+            response.message = f"Robot speed override set to {request.data:g}%"
+        except (ProtocolError, OSError, ValueError) as exc:
+            response.success = False
+            response.message = str(exc)
+            self.get_logger().error(f"Could not set robot speed override: {exc}")
+        finally:
+            with self._active_goal_lock:
+                self._active_speed_command = False
+        return response
 
     def move_gripper_callback(self, request, response):
         if not self.allow_gripper:
@@ -191,7 +239,11 @@ class ElfinTcpAdapter(Node):
             return response
 
         with self._active_goal_lock:
-            if self._active_goal or self._active_gripper_command:
+            if (
+                self._active_goal
+                or self._active_gripper_command
+                or self._active_speed_command
+            ):
                 response.success = False
                 response.message = "Robot is executing another arm or gripper command"
                 return response
@@ -215,7 +267,7 @@ class ElfinTcpAdapter(Node):
                     response.success = True
                     response.message = (
                         "Robotiq stopped; commanded target was "
-                        f"{target_position:g} degrees (position feedback is disabled)"
+                        f"{target_position:g} mm (position feedback is disabled)"
                     )
                     return response
                 time.sleep(self.move_state_poll_period_sec)
@@ -243,7 +295,11 @@ class ElfinTcpAdapter(Node):
             response.message = "Gripper control is disabled (allow_gripper is false)"
             return response
         with self._active_goal_lock:
-            if self._active_goal or self._active_gripper_command:
+            if (
+                self._active_goal
+                or self._active_gripper_command
+                or self._active_speed_command
+            ):
                 response.success = False
                 response.message = "Robot is executing another arm or gripper command"
                 return response

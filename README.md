@@ -181,9 +181,16 @@ ros2 launch elfin_tcp_driver elfin5_tcp_moveit.launch.py \
 
 The adapter maps trajectory waypoints to the protocol's `MoveBJ` endpoint-update command and waits for the controller's motion state. TCP execution is **not hard real-time**, and it does not reproduce the EtherCAT driver's timing/servo behavior; validate at low speed and do not use it for high-rate servoing or safety-critical motion. The existing Elfin Control Panel's EtherCAT servo-control path is not replaced by this adapter.
 
+Arm speed can be set while the robot is idle with `/elfin_arm/set_speed` (the controller's `SetOverride` command). The requested speed is a percentage from 1 to 100 and requires `allow_motion:=true`; it does not power on the arm or enable servos. The setting is not applied automatically at startup.
+
+```sh
+ros2 service call /elfin_arm/set_speed elfin_robot_msgs/srv/SetFloat64 \
+  "{data: 25.0}"
+```
+
 #### TCP Robotiq gripper control
 
-The adapter uses the controller's Robotiq TCP commands: `SetRobotiq`, `RobotiqStatus`, and `RobotIQReset`. Position is in degrees and clamped to `0–140`; speed is clamped to `30–250`; force is clamped to `10–125`. It does not query `ReadRobotiqPosition`; the TUI displays the last commanded target, not measured position. The Elfin5 MoveIt model currently represents the gripper as a fixed dummy link, so this is a direct ROS service, not a gripper joint planned by MoveIt.
+The adapter uses the controller's Robotiq TCP commands: `SetRobotiq`, `RobotiqStatus`, and `RobotIQReset`. For the Robotiq 2F-140, position is in millimeters and clamped to `0–140`; speed is clamped to `30–250 mm/s`; force is clamped to `10–125`. It does not query `ReadRobotiqPosition`; the TUI displays the last commanded target, not measured position. The Elfin5 MoveIt model currently represents the gripper as a fixed dummy link, so this is a direct ROS service, not a gripper joint planned by MoveIt.
 
 Gripper control is disabled by default. To enable **only** the gripper, leaving arm trajectory motion disabled, launch:
 
@@ -200,18 +207,18 @@ ros2 launch elfin_tcp_driver elfin5_tcp_moveit.launch.py \
   allow_motion:=true allow_gripper:=true
 ```
 
-The gripper command service is `/elfin_gripper/move`. It accepts a target position in degrees, speed, and force; non-positive speed and force values use the defaults (250 and 10). The defaults can be changed at launch with `gripper_speed:=<30-250>` and `gripper_default_force:=<10-125>`.
+The gripper command service is `/elfin_gripper/move`. It accepts a target position in millimeters (0–140 for the 2F-140), speed in mm/s, and force. Set `speed` per call to control that move; non-positive speed and force values use the configured defaults (250 and 10). Change the default speed for TUI toggles and calls that omit speed with `gripper_speed:=<30-250>` at launch; the default force can be changed with `gripper_default_force:=<10-125>`.
 
 ```sh
-# Move to 70 degrees, using force 25
+# Move to 70 mm at speed 100, using force 25
 ros2 service call /elfin_gripper/move elfin_robot_msgs/srv/SetRobotiq \
-  "{position: 70.0, speed: 250.0, force: 25.0}"
+  "{position: 70.0, speed: 100.0, force: 25.0}"
 
 # Reset the gripper
 ros2 service call /elfin_gripper/reset std_srvs/srv/Trigger "{}"
 ```
 
-The gripper path does not check DCS, arm state, or actual gripper position. It still requires `allow_gripper:=true` and rejects commands while this adapter has an arm or gripper command active. The move service waits for `RobotiqStatus` to report that motion stopped; the returned message identifies the commanded target, not a measured angle. The supplied protocol commands do not include a gripper stop command; a timeout reports failure but cannot guarantee the gripper stopped. Verify the Robotiq interface, direction (which endpoint is open), and force behavior at low speed with the work area clear before use. Physical gripper behavior has not been tested here.
+The gripper path does not check DCS, arm state, or actual gripper position. It still requires `allow_gripper:=true` and rejects commands while this adapter has an arm or gripper command active. The move service waits for `RobotiqStatus` to report that motion stopped; the returned message identifies the commanded target, not a measured position. The supplied protocol commands do not include a gripper stop command; a timeout reports failure but cannot guarantee the gripper stopped. Verify the Robotiq interface, direction (which endpoint is open), and force behavior at low speed with the work area clear before use. Physical gripper behavior has not been tested here.
 
 #### Terminal UI
 
@@ -222,7 +229,7 @@ ros2 run elfin_tcp_driver elfin5_robot_tui --ros-args \
   -p enable_arm_commands:=true -p enable_gripper_commands:=true
 ```
 
-The dashboard displays actual arm joint positions and the last commanded gripper target (not sensor feedback). Press `j` to enter six target joint angles; pressing Enter submits them to MoveIt for planning and execution at 10% velocity/acceleration scaling. Press `g` to enter gripper angle, speed, and force; Enter submits the command. Press `t` to toggle the TUI's internal target between 0° and 140° using the configured default speed and force. The first `t` press targets 140°; after a successful move, the next press targets the opposite endpoint. This toggle does not read the gripper angle. A blank entry cancels either prompt. Press `r` to reset the gripper immediately, `s` to cancel an active arm goal, and `q` to quit. The UI validates Elfin5 joint limits; gripper position must be 0–140°, speed 30–250, and force 10–125. Gripper movement cannot be canceled through the supplied TCP commands. Use a terminal large enough for the dashboard and keep the physical E-stop accessible.
+The dashboard displays actual arm joint positions and the last commanded gripper target (not sensor feedback). Press `v` to set the robot speed override from 1–100%; this also sets MoveIt's velocity and acceleration scaling for subsequent TUI arm moves. The change is sent to the TCP adapter and is rejected while a command is active. The initial planning scaling is 10%; the TUI does not change the controller override until `v` is used. Press `j` to enter six target joint angles; pressing Enter submits them to MoveIt for planning and execution at the selected scaling. Press `g` and enter `position [speed] [force]` in millimeters; for example, `70 100` commands 70 mm at 100 mm/s while using the configured default force, and `70 100 25` also sets force to 25. Omitting speed and force uses the adapter's configured defaults. Press `t` to toggle the TUI's internal target between 0 mm and 140 mm using the configured default gripper speed and force. The first `t` press targets 140 mm; after a successful move, the next press targets the opposite endpoint. This toggle does not read the gripper position. A blank entry cancels either prompt. Press `r` to reset the gripper immediately, `s` to cancel an active arm goal, and `q` to quit. The UI validates Elfin5 joint limits; gripper position must be 0–140 mm, speed 30–250 mm/s, and force 10–125. Gripper movement cannot be canceled through the supplied TCP commands. Use a terminal large enough for the dashboard and keep the physical E-stop accessible.
 
 This feature adds a ROS service interface and a console executable, so rebuild/recreate the image once before first use:
 

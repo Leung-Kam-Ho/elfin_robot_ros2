@@ -15,7 +15,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_srvs.srv import Trigger
 
-from elfin_robot_msgs.srv import SetRobotiq
+from elfin_robot_msgs.srv import SetFloat64, SetRobotiq
 from elfin_tcp_driver.adapter_node import JOINT_LIMITS_DEG, JOINT_NAMES
 
 
@@ -53,13 +53,15 @@ class ElfinRobotTui(Node):
         self._joint_positions = {}
         self._gripper_commanded_position = None
         # The toggle is a UI-side target sequence, independent of encoder reads.
-        # Begin by commanding 140 degrees on the first toggle press.
+        # Begin by commanding 140 mm on the first toggle press.
         self._next_gripper_toggle_target = 140.0
         self._pending_gripper_target = None
         self._message = "Waiting for robot state..."
         self._arm_pending = False
         self._active_arm_goal = None
         self._gripper_pending = False
+        self._arm_speed_pending = False
+        self._controller_speed_override_set = False
 
         self._joint_state_sub = self.create_subscription(
             JointState, "/joint_states", self._joint_state_callback, 10
@@ -73,6 +75,11 @@ class ElfinRobotTui(Node):
         self._gripper_move_client = self.create_client(
             SetRobotiq,
             "/elfin_gripper/move",
+            callback_group=self._callbacks,
+        )
+        self._arm_speed_client = self.create_client(
+            SetFloat64,
+            "/elfin_arm/set_speed",
             callback_group=self._callbacks,
         )
         self._gripper_reset_client = self.create_client(
@@ -103,6 +110,8 @@ class ElfinRobotTui(Node):
                 self._message,
                 self._arm_pending,
                 self._gripper_pending,
+                self.velocity_scaling * 100.0,
+                self._controller_speed_override_set,
             )
 
     def _read_joint_goal(self, screen):
@@ -136,7 +145,7 @@ class ElfinRobotTui(Node):
             self._set_message("MoveIt /move_action is not available")
             return
         with self._lock:
-            if self._arm_pending or self._gripper_pending:
+            if self._arm_pending or self._gripper_pending or self._arm_speed_pending:
                 self._message = "Another arm or gripper command is active"
                 return
             self._arm_pending = True
@@ -164,6 +173,64 @@ class ElfinRobotTui(Node):
 
         future = self._move_group_client.send_goal_async(goal)
         future.add_done_callback(self._arm_goal_response)
+
+    def _read_arm_speed(self, screen):
+        if not self.enable_arm_commands:
+            self._set_message(
+                "Arm speed control disabled; enable_arm_commands:=true to change it"
+            )
+            return
+        value = self._prompt(
+            screen, "Set robot speed override [1-100%] (blank to cancel):"
+        )
+        if not value:
+            return
+        try:
+            speed_percent = float(value)
+            if not math.isfinite(speed_percent) or not 1 <= speed_percent <= 100:
+                raise ValueError("Robot speed must be between 1 and 100 percent")
+        except ValueError as exc:
+            self._set_message(str(exc))
+            return
+        self._set_arm_speed(speed_percent)
+
+    def _set_arm_speed(self, speed_percent):
+        if not self._arm_speed_client.service_is_ready():
+            self._set_message(
+                "Arm speed service is unavailable; is the TCP adapter running?"
+            )
+            return
+        with self._lock:
+            if self._arm_pending or self._gripper_pending or self._arm_speed_pending:
+                self._message = "Another arm or gripper command is active"
+                return
+            self._arm_speed_pending = True
+            self._message = f"Setting robot speed to {speed_percent:g}%..."
+        request = SetFloat64.Request()
+        request.data = float(speed_percent)
+        future = self._arm_speed_client.call_async(request)
+        future.add_done_callback(
+            lambda result: self._arm_speed_done(result, speed_percent)
+        )
+
+    def _arm_speed_done(self, future, speed_percent):
+        try:
+            response = future.result()
+            if response.success:
+                with self._lock:
+                    # Keep MoveIt's requested scaling aligned with the
+                    # controller's persistent SetOverride value.
+                    self.velocity_scaling = speed_percent / 100.0
+                    self.acceleration_scaling = speed_percent / 100.0
+                    self._controller_speed_override_set = True
+                message = response.message
+            else:
+                message = f"Speed change failed: {response.message}"
+        except Exception as exc:  # noqa: BLE001
+            message = f"Speed change failed: {exc}"
+        with self._lock:
+            self._arm_speed_pending = False
+            self._message = message
 
     def _arm_goal_response(self, future):
         try:
@@ -218,24 +285,28 @@ class ElfinRobotTui(Node):
             return
         values = self._prompt(
             screen,
-            "Enter gripper angle [0-140], speed [30-250], force [10-125] (or blank to cancel):",
+            "Pos mm [0-140], speed [30-250 mm/s], force [10-125]; blank cancels:",
         )
         if not values:
             return
         try:
             command = [float(value) for value in values.replace(",", " ").split()]
-            if len(command) not in (1, 3) or not all(
+            if len(command) not in (1, 2, 3) or not all(
                 math.isfinite(value) for value in command
             ):
-                raise ValueError("Enter an angle, optionally followed by speed and force")
+                raise ValueError(
+                    "Enter a position, optionally followed by speed and force"
+                )
             position = command[0]
-            speed = command[1] if len(command) == 3 else 250.0
-            force = command[2] if len(command) == 3 else 10.0
+            # Zero tells the adapter to use its configured default. This also
+            # lets users provide position and speed without specifying force.
+            speed = command[1] if len(command) >= 2 else 0.0
+            force = command[2] if len(command) == 3 else 0.0
             if position < 0 or position > 140:
-                raise ValueError("Gripper angle must be between 0 and 140 degrees")
-            if speed < 30 or speed > 250:
+                raise ValueError("Gripper position must be between 0 and 140 mm")
+            if len(command) >= 2 and (speed < 30 or speed > 250):
                 raise ValueError("Gripper speed must be between 30 and 250")
-            if force < 10 or force > 125:
+            if len(command) == 3 and (force < 10 or force > 125):
                 raise ValueError("Gripper force must be between 10 and 125")
         except ValueError as exc:
             self._set_message(str(exc))
@@ -250,11 +321,11 @@ class ElfinRobotTui(Node):
             self._set_message("Gripper service is unavailable; is the TCP adapter running?")
             return
         with self._lock:
-            if self._arm_pending or self._gripper_pending:
+            if self._arm_pending or self._gripper_pending or self._arm_speed_pending:
                 self._message = "Another arm or gripper command is active"
                 return
             self._gripper_pending = True
-            self._message = f"Commanding gripper to {position:g} degrees..."
+            self._message = f"Commanding gripper to {position:g} mm..."
         request = SetRobotiq.Request()
         request.position = float(position)
         request.speed = float(speed)
@@ -305,7 +376,7 @@ class ElfinRobotTui(Node):
             self._set_message("Gripper reset service is unavailable")
             return
         with self._lock:
-            if self._arm_pending or self._gripper_pending:
+            if self._arm_pending or self._gripper_pending or self._arm_speed_pending:
                 self._message = "Another arm or gripper command is active"
                 return
             self._gripper_pending = True
@@ -356,6 +427,8 @@ class ElfinRobotTui(Node):
                 break
             if key == ord("j"):
                 self._read_joint_goal(screen)
+            elif key == ord("v"):
+                self._read_arm_speed(screen)
             elif key == ord("g"):
                 self._read_gripper_command(screen)
             elif key == ord("t"):
@@ -368,7 +441,15 @@ class ElfinRobotTui(Node):
     def _draw(self, screen):
         screen.erase()
         height, width = screen.getmaxyx()
-        joints, gripper_position, message, arm_pending, gripper_pending = self._snapshot()
+        (
+            joints,
+            gripper_position,
+            message,
+            arm_pending,
+            gripper_pending,
+            arm_speed_percent,
+            controller_speed_set,
+        ) = self._snapshot()
         rows = [
             "Elfin5 TCP Robot Console",
             "Read-only by default; physical E-stop is not replaced by this app.",
@@ -376,6 +457,12 @@ class ElfinRobotTui(Node):
             f"Gripper commands: {'ENABLED' if self.enable_gripper_commands else 'disabled'}",
             "",
             "Actual arm joints (degrees):",
+            f"Arm speed: {arm_speed_percent:.0f}%"
+            + (
+                " (controller override set)"
+                if controller_speed_set
+                else " (planning scale; override not set by this TUI)"
+            ),
         ]
         for index, name in enumerate(JOINT_NAMES, start=1):
             value = joints.get(name)
@@ -385,14 +472,15 @@ class ElfinRobotTui(Node):
                 "",
                 "Last gripper command: "
                 + (
-                    f"{gripper_position:.1f}° (not sensor feedback)"
+                    f"{gripper_position:.1f} mm (not sensor feedback)"
                     if gripper_position is not None
                     else "unknown (position read disabled)"
                 ),
                 f"Command state: arm={'busy' if arm_pending else 'idle'}, "
                 f"gripper={'busy' if gripper_pending else 'idle'}",
                 "",
-                "Keys: j=arm target   g=gripper angle   t=toggle gripper 0/140 degrees",
+                "Keys: j=arm target   v=arm speed %   g=gripper position/speed/force",
+                "      t=toggle gripper 0/140 mm",
                 "      r=reset gripper",
                 "      s=cancel active arm goal     q=quit",
                 "",

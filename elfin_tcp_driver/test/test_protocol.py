@@ -6,6 +6,7 @@ from elfin_tcp_driver.protocol import (
     HansRobotTcpClient,
     ProtocolError,
     format_robotiq_command,
+    format_robot_speed_override,
     parse_robotiq_moving,
 )
 
@@ -65,9 +66,21 @@ class TcpProtocolTest(unittest.TestCase):
             "SetRobotiq,70,250,10,;",
         )
         self.assertEqual(
+            format_robotiq_command(70, 100, 25),
+            "SetRobotiq,70,100,25,;",
+        )
+        self.assertEqual(
             format_robotiq_command(-5, 400, 5),
             "SetRobotiq,0,250,10,;",
         )
+
+    def test_formats_robot_speed_override(self):
+        self.assertEqual(
+            format_robot_speed_override(0, 25),
+            "SetOverride,0,0.2500,;",
+        )
+        with self.assertRaisesRegex(ValueError, "1 and 100"):
+            format_robot_speed_override(0, 0)
 
     def test_robotiq_position_and_status_responses(self):
         self.assertTrue(parse_robotiq_moving(["0", "3", "1", "1"]))
