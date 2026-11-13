@@ -288,8 +288,9 @@ E-stop accessible.
 
 `ELFIN_TCP_AUTOSTART=true` adds MoveIt, RViz, and the TUI to the container
 entrypoint's supervisor configuration. It starts after the VNC display is
-available. MoveIt output is written to `~/.ros/elfin_tcp_moveit.log` inside the
-container. Apply `.env` changes with:
+available. MoveIt runs in a visible Terminator window; output is also appended
+to `~/.ros/elfin_tcp_moveit.log` inside the container. Apply `.env` changes
+with:
 
 ```sh
 docker compose up -d --force-recreate
