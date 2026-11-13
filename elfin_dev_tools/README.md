@@ -108,12 +108,30 @@ docker compose exec elfin5 /usr/local/bin/elfin_web_api.sh
 
 ## Using the client from Python
 
-```python
-from elfin_dev_tools import ElfinClient
+The runnable example is [`examples/read_joint_state.py`](examples/read_joint_state.py).
+From the repository root:
 
-with ElfinClient("http://localhost:5001") as client:
-    state = client.joint_state()
-    print(state["positions_deg"])
+```sh
+uv run python elfin_dev_tools/examples/read_joint_state.py
+```
+
+It uses the `ElfinClient` API directly, handles API errors, and prints each
+joint's position in degrees. Set `ELFIN_API_URL` if the API is not at the
+default `http://localhost:5001`.
+
+The core usage is:
+
+```python
+from elfin_dev_tools import ElfinApiError, ElfinClient
+
+try:
+    with ElfinClient() as client:
+        state = client.joint_state()
+except ElfinApiError as exc:
+    print("Could not read robot state:", exc)
+else:
+    for name, degrees in zip(state["names"], state["positions_deg"]):
+        print("{}: {:.2f} degrees".format(name, degrees))
 ```
 
 ## Development
