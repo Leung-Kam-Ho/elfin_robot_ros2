@@ -156,7 +156,7 @@ Rebuild the image, start the normal desktop container, and in a desktop terminal
 
 ```sh
 docker compose build
-docker compose up -d
+docker compose up -d # go to localhost:6080 for the GUI
 ```
 
 ```sh
