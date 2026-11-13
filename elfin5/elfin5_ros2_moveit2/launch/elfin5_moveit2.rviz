@@ -1,14 +1,14 @@
 Panels:
-  - Class: rviz_common/Displays
-    Help Height: 0
-    Name: Displays
-    Property Tree Widget:
-      Expanded:
-        - /Global Options1
-        - /Status1
-        - /MotionPlanning1
-      Splitter Ratio: 0.5
-    Tree Height: 228
+  # - Class: rviz_common/Displays
+  #   Help Height: 0
+  #   Name: Displays
+  #   Property Tree Widget:
+  #     Expanded:
+  #       - /Global Options1
+  #       - /Status1
+  #       - /MotionPlanning1
+  #     Splitter Ratio: 0.5
+  #   Tree Height: 228
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -22,11 +22,11 @@ Panels:
       - /Current View1
     Name: Views
     Splitter Ratio: 0.5
-  - Class: rviz_common/Time
-    Experimental: false
-    Name: Time
-    SyncMode: 0
-    SyncSource: ""
+  # - Class: rviz_common/Time
+  #   Experimental: false
+  #   Name: Time
+  #   SyncMode: 0
+  #   SyncSource: ""
 Visualization Manager:
   Class: ""
   Displays:
@@ -298,8 +298,8 @@ Visualization Manager:
     Saved: ~
 Window Geometry:
   Displays:
-    collapsed: false
-  Height: 450
+    collapsed: true
+  Height: 650
   Hide Left Dock: false
   Hide Right Dock: false
   MotionPlanning:
