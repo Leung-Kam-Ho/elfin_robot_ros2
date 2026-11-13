@@ -22,6 +22,7 @@ setup(
     entry_points={
         "console_scripts": [
             "elfin_tcp_adapter = elfin_tcp_driver.adapter_node:main",
+            "elfin5_robot_tui = elfin_tcp_driver.tui:main",
         ],
     },
 )

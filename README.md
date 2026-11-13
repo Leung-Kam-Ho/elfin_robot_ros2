@@ -147,63 +147,6 @@ docker compose up --build -d
 
 Open <http://localhost:6080/>. The default VNC password is `ubuntu`; set `VNC_PASSWORD` before starting to change it. By default the image builds for your host architecture, because the upstream base image provides both amd64 and arm64 variants. To force a different platform (for example, `linux/amd64` under emulation on Apple Silicon), set `DOCKER_PLATFORM=linux/amd64` when building and running.
 
-In a terminal inside the desktop, launch the Elfin5 Gazebo + MoveIt simulation:
-
-```sh
-ros2 launch elfin5_ros2_moveit2 elfin5.launch.py
-```
-
-To start the Elfin API and simulated control panel, open another terminal for each command:
-
-```sh
-ros2 launch elfin5_ros2_moveit2 elfin5_basic_api.launch.py
-ros2 launch elfin_basic_api fake_elfin_gui.launch.py
-```
-
-The image also builds the EtherCAT and hardware-control packages. **The container only starts the desktop; it does not automatically connect to or move a real robot.** Direct EtherCAT access requires a Linux host; Docker Desktop on macOS cannot provide it.
-
-Before starting the hardware connection:
-
-1. Connect the robot to the Linux host and identify the host interface connected to the robot:
-
-   ```sh
-   ip -br link
-   ```
-
-2. EtherCAT reaches the joint drives directly, so the arm must be connected **without the vendor control box in the path**. Use the Han's Robot *Elfin cable adapter* (the "body/cabinet adapter" in their *ROS Control* manual) to break out the arm's EtherCAT interface and 48 V supply; the control box cuts power to the arm after a while without its watchdog messages, and two masters cannot share the same chain. A direct cable, or a gigabit switch between the arm and the host, both work. The power side is 42–54 V DC with at least 19 A peak (for example a Mean Well RSP-1000-48); adapter pins are 1 = +48 V, 2 = −48 V, 3 = GND, 4 = unused. **Add an emergency-stop switch in the 48 V line**, because bypassing the cabinet also bypasses its E-stop. No IP address is required on the EtherCAT NIC. `No slaves are found on <nic>` (or `wkc = -1`) means the drives are not visible: wrong NIC, the control box or a filtered/isolated switch port in the path, or the arm is not powered. A quick way to identify the control box: if the arm address answers TCP port 10003 (Han's remote API), the joint drives are behind that controller and SOEM will never enumerate through it. If the slaves enumerate but later drop, the vendor's fix is to enable Simulation mode on the pendant.
-
-3. Put the vendor-provided `elfin_drivers.yaml` in `elfin_robot_bringup/config/`. Configure `elfin_robot_bringup/config/elfin_arm_control.yaml` with the correct NIC name and the robot-specific values supplied by the vendor. **The repository's checked-in YAML contains example values; do not assume they are correct for your arm.** Configure the host network and PREEMPT_RT as required by the vendor, and review the launch configuration before powering the robot.
-
-Switch from the normal desktop container to the hardware network setup from the repository root on the host:
-
-```sh
-docker compose down
-docker compose -f compose.yaml -f compose.hardware.yaml up --build -d
-```
-
-With host networking, open the desktop at <http://localhost:6080/>. Because the container shares the host network, it runs its VNC server on display `:2` (RFB 5902) and noVNC on port 6080 by default, avoiding a host VNC server on `:1`/5901 and the privileged port 80. Override with `VNC_DISPLAY` or `NOVNC_PORT` if those are also in use. In separate terminals inside the desktop, launch the hardware controller, MoveIt/RViz, API, and control panel in this order. Source the ROS and workspace setup in each terminal, and run the hardware processes as root because SOEM needs raw-socket access:
-
-```sh
-sudo bash -c 'source /opt/ros/foxy/setup.bash && source /opt/elfin_ws/install/setup.bash && ros2 launch elfin5_ros2_moveit2 elfin5_moveit.launch.py'
-```
-
-```sh
-sudo bash -c 'source /opt/ros/foxy/setup.bash && source /opt/elfin_ws/install/setup.bash && ros2 launch elfin5_ros2_moveit2 elfin5_moveit_rviz.launch.py'
-```
-
-```sh
-source /opt/ros/foxy/setup.bash
-source /opt/elfin_ws/install/setup.bash
-ros2 launch elfin5_ros2_moveit2 elfin5_basic_api.launch.py
-```
-
-```sh
-source /opt/ros/foxy/setup.bash
-source /opt/elfin_ws/install/setup.bash
-ros2 launch elfin_basic_api elfin_gui.launch.py
-```
-
-Host networking exposes the desktop on host port 80 and grants raw-network and realtime scheduling capabilities. Use it only on a trusted, isolated host/network. Verify the robot is in a safe state and the area is clear before enabling servos; the container does not provide hard realtime guarantees. Follow the [real-hardware setup](#usage-with-real-hardware) for the vendor-specific setup and safety steps.
 
 ### TCP protocol adapter (Mac/Linux)
 
@@ -272,6 +215,24 @@ ros2 service call /elfin_gripper/reset std_srvs/srv/Trigger "{}"
 ```
 
 The adapter checks DCS and arm state before gripper motion. The move service waits for the gripper to stop and returns its measured position, whether it reached the target, and whether it stopped early (for example, on an object). The supplied protocol commands do not include a gripper stop command; a timeout reports failure but cannot guarantee the gripper stopped. Verify the Robotiq interface, direction (which endpoint is open), and force behavior at low speed with the work area clear before use. Physical gripper behavior has not been tested here.
+
+#### Terminal UI
+
+With the TCP MoveIt launch running, start the curses-based dashboard in a separate terminal. Both UI command gates default to disabled; the adapter's own `allow_motion` and `allow_gripper` gates must also be enabled for commands to succeed.
+
+```sh
+ros2 run elfin_tcp_driver elfin5_robot_tui --ros-args \
+  -p enable_arm_commands:=true -p enable_gripper_commands:=true
+```
+
+The dashboard displays actual arm joint positions and polls the gripper position. Press `j` to enter six target joint angles; pressing Enter submits them to MoveIt for planning and execution at 10% velocity/acceleration scaling. Press `g` to enter gripper angle, speed, and force; Enter submits the command. A blank entry cancels either prompt. Press `r` to reset the gripper immediately, `s` to cancel an active arm goal, and `q` to quit. The UI validates Elfin5 joint limits; gripper position must be 0–140°, speed 30–250, and force 10–125. Gripper movement cannot be canceled through the supplied TCP commands. Use a terminal large enough for the dashboard and keep the physical E-stop accessible.
+
+This feature adds a ROS service interface and a console executable, so rebuild/recreate the image once before first use:
+
+```sh
+docker compose build
+docker compose up -d
+```
 
 The Docker image uses `colcon build --symlink-install`, and Compose mounts the repository source read-only into the container. Edits to Python and launch files on the host are visible in the running container; restart the affected ROS process to load them. C++ changes still need recompilation. The workspace is root-owned in the image, so rebuild it from a desktop terminal with `sudo`:
 
