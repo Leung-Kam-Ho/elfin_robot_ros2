@@ -5,7 +5,9 @@ import unittest
 from elfin_tcp_driver.protocol import (
     HansRobotTcpClient,
     ProtocolError,
-    format_digital_output_command,
+    format_robotiq_command,
+    parse_robotiq_moving,
+    parse_robotiq_position,
 )
 
 
@@ -58,25 +60,29 @@ class TcpProtocolTest(unittest.TestCase):
         with self.assertRaisesRegex(ProtocolError, "1010"):
             self.client.request("BadCommand,;")
 
-    def test_formats_supported_digital_output_banks(self):
+    def test_formats_robotiq_position_command(self):
         self.assertEqual(
-            format_digital_output_command("robot", 0, 2, 1),
-            "SetOutIOState,0,2,1,;",
+            format_robotiq_command(70, 250, 10),
+            "SetRobotiq,70,250,10,;",
         )
         self.assertEqual(
-            format_digital_output_command("config", 0, 2, 0),
-            "SetConfigDO,2,0,;",
-        )
-        self.assertEqual(
-            format_digital_output_command("serial", 0, 2, 1),
-            "SetSerialDO,2,1,;",
+            format_robotiq_command(-5, 400, 5),
+            "SetRobotiq,0,250,10,;",
         )
 
-    def test_rejects_invalid_digital_output_values(self):
-        with self.assertRaisesRegex(ValueError, "non-negative"):
-            format_digital_output_command("robot", 0, -1, 0)
-        with self.assertRaisesRegex(ValueError, "0 or 1"):
-            format_digital_output_command("robot", 0, 1, 2)
+    def test_robotiq_position_and_status_responses(self):
+        self.assertEqual(parse_robotiq_position(["72"]), 72.0)
+        self.assertTrue(parse_robotiq_moving(["0", "3", "1", "1"]))
+        self.assertFalse(parse_robotiq_moving(["3", "3", "1", "1"]))
+        self.assertFalse(parse_robotiq_moving(["2", "3", "1", "1"]))
+
+    def test_rejects_invalid_robotiq_state(self):
+        with self.assertRaisesRegex(ValueError, "finite"):
+            format_robotiq_command(float("nan"))
+        with self.assertRaisesRegex(ProtocolError, "Unexpected RobotiqStatus"):
+            parse_robotiq_moving(["9", "9", "9", "9"])
+        with self.assertRaisesRegex(ProtocolError, "outside 0-140"):
+            parse_robotiq_position(["141"])
 
 
 if __name__ == "__main__":

@@ -1,0 +1,9 @@
+float64 position
+float64 speed
+float64 force
+---
+bool success
+float64 position
+bool stalled
+bool reached_goal
+string message

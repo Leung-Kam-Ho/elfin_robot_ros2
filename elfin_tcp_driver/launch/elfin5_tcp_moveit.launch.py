@@ -24,11 +24,12 @@ def generate_launch_description():
     robot_port = LaunchConfiguration("robot_port")
     allow_motion = LaunchConfiguration("allow_motion")
     allow_gripper = LaunchConfiguration("allow_gripper")
-    gripper_io_type = LaunchConfiguration("gripper_io_type")
-    gripper_open_output = LaunchConfiguration("gripper_open_output")
-    gripper_close_output = LaunchConfiguration("gripper_close_output")
-    gripper_open_active_state = LaunchConfiguration("gripper_open_active_state")
-    gripper_close_active_state = LaunchConfiguration("gripper_close_active_state")
+    gripper_speed = LaunchConfiguration("gripper_speed")
+    gripper_default_force = LaunchConfiguration("gripper_default_force")
+    gripper_motion_timeout_sec = LaunchConfiguration("gripper_motion_timeout_sec")
+    gripper_position_tolerance_deg = LaunchConfiguration(
+        "gripper_position_tolerance_deg"
+    )
     rviz = LaunchConfiguration("rviz")
 
     xacro_path = os.path.join(
@@ -109,17 +110,14 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "allow_gripper",
                 default_value="false",
-                description="Explicitly enable gripper digital-output commands",
+                description="Explicitly enable TCP Robotiq gripper commands",
             ),
+            DeclareLaunchArgument("gripper_speed", default_value="250"),
+            DeclareLaunchArgument("gripper_default_force", default_value="10"),
+            DeclareLaunchArgument("gripper_motion_timeout_sec", default_value="15.0"),
             DeclareLaunchArgument(
-                "gripper_io_type",
-                default_value="robot",
-                description="Gripper output bank: robot, config, or serial",
+                "gripper_position_tolerance_deg", default_value="1.0"
             ),
-            DeclareLaunchArgument("gripper_open_output", default_value="-1"),
-            DeclareLaunchArgument("gripper_close_output", default_value="-1"),
-            DeclareLaunchArgument("gripper_open_active_state", default_value="1"),
-            DeclareLaunchArgument("gripper_close_active_state", default_value="1"),
             DeclareLaunchArgument("rviz", default_value="true"),
             Node(
                 package="elfin_tcp_driver",
@@ -134,18 +132,17 @@ def generate_launch_description():
                         "allow_gripper": ParameterValue(
                             allow_gripper, value_type=bool
                         ),
-                        "gripper_io_type": gripper_io_type,
-                        "gripper_open_output": ParameterValue(
-                            gripper_open_output, value_type=int
+                        "gripper_speed": ParameterValue(
+                            gripper_speed, value_type=float
                         ),
-                        "gripper_close_output": ParameterValue(
-                            gripper_close_output, value_type=int
+                        "gripper_default_force": ParameterValue(
+                            gripper_default_force, value_type=float
                         ),
-                        "gripper_open_active_state": ParameterValue(
-                            gripper_open_active_state, value_type=int
+                        "gripper_motion_timeout_sec": ParameterValue(
+                            gripper_motion_timeout_sec, value_type=float
                         ),
-                        "gripper_close_active_state": ParameterValue(
-                            gripper_close_active_state, value_type=int
+                        "gripper_position_tolerance_deg": ParameterValue(
+                            gripper_position_tolerance_deg, value_type=float
                         ),
                     }
                 ],

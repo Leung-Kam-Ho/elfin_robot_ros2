@@ -238,32 +238,40 @@ ros2 launch elfin_tcp_driver elfin5_tcp_moveit.launch.py \
 
 The adapter maps trajectory waypoints to the protocol's `MoveBJ` endpoint-update command and waits for the controller's motion state. TCP execution is **not hard real-time**, and it does not reproduce the EtherCAT driver's timing/servo behavior; validate at low speed and do not use it for high-rate servoing or safety-critical motion. The existing Elfin Control Panel's EtherCAT servo-control path is not replaced by this adapter.
 
-#### TCP gripper output control
+#### TCP Robotiq gripper control
 
-The HansRobot TCP protocol exposes digital outputs rather than a dedicated gripper command. The adapter provides a `std_srvs/SetBool` service that switches a two-output gripper: `data: false` opens and `data: true` closes. This assumes the gripper is wired to two mutually exclusive digital outputs (one for open, one for close). The Elfin5 MoveIt model currently represents the gripper as a fixed dummy link, so this is a direct ROS service and is not a MoveIt gripper action or planned gripper joint.
+The adapter uses the controller's Robotiq TCP commands: `SetRobotiq`, `ReadRobotiqPosition`, `RobotiqStatus`, and `RobotIQReset`. Position is in degrees and clamped to `0–140`; speed is clamped to `30–250`; force is clamped to `10–125`. The Elfin5 MoveIt model currently represents the gripper as a fixed dummy link, so this is a direct ROS service, not a gripper joint planned by MoveIt.
 
-First identify the correct output bank and indices from the controller configuration / gripper wiring. Do **not** copy the example indices blindly. Start the launch with gripper control explicitly enabled and the outputs configured; arm trajectory motion can remain disabled:
+Gripper control is disabled by default. To enable **only** the gripper, leaving arm trajectory motion disabled, launch:
+
+```sh
+ros2 launch elfin_tcp_driver elfin5_tcp_moveit.launch.py \
+  robot_ip:=192.168.1.63 robot_port:=10003 allow_gripper:=true
+```
+
+To enable both arm trajectory motion and gripper control, use both explicit gates:
 
 ```sh
 ros2 launch elfin_tcp_driver elfin5_tcp_moveit.launch.py \
   robot_ip:=192.168.1.63 robot_port:=10003 \
-  allow_gripper:=true gripper_io_type:=robot \
-  gripper_open_output:=0 gripper_close_output:=1
+  allow_motion:=true allow_gripper:=true
 ```
 
-`gripper_io_type` selects `robot` (`SetOutIOState`, robot-specific output), `config` (`SetConfigDO`, functional serial-port output), or `serial` (`SetSerialDO`, common serial-port output). Replace indices `0` and `1` with the actual outputs. Active output levels default to high (`1`); set `gripper_open_active_state` and/or `gripper_close_active_state` to `0` if the corresponding hardware is active-low. Before a command, the node deactivates the opposite output, then activates the requested output. It does not initialize or energize gripper outputs on startup, and it rejects gripper requests while the arm is moving or reports an error. If a TCP/output command fails, it does not issue further output changes because that could release a held object; inspect the gripper state before retrying.
-
-After confirming DCS is normal, the arm is stationary, and the work area is clear, call:
+The gripper command service is `/elfin_gripper/move`. It accepts a target position in degrees, speed, and force; non-positive speed and force values use the defaults (250 and 10). The defaults can be changed at launch with `gripper_speed:=<30-250>` and `gripper_default_force:=<10-125>`.
 
 ```sh
-# Open
-ros2 service call /elfin_gripper/set std_srvs/srv/SetBool "{data: false}"
+# Move to 70 degrees, using force 25
+ros2 service call /elfin_gripper/move elfin_robot_msgs/srv/SetRobotiq \
+  "{position: 70.0, speed: 250.0, force: 25.0}"
 
-# Close
-ros2 service call /elfin_gripper/set std_srvs/srv/SetBool "{data: true}"
+# Read current position
+ros2 service call /elfin_gripper/read_position std_srvs/srv/Trigger "{}"
+
+# Reset the gripper
+ros2 service call /elfin_gripper/reset std_srvs/srv/Trigger "{}"
 ```
 
-Gripper output control is separately gated by `allow_gripper:=true` (default `false`); it does not require `allow_motion:=true`. The output commands are not atomic and the adapter cannot confirm physical jaw position or grasp success. Verify the wiring and behavior at low force/speed under the gripper manufacturer's safety instructions before use.
+The adapter checks DCS and arm state before gripper motion. The move service waits for the gripper to stop and returns its measured position, whether it reached the target, and whether it stopped early (for example, on an object). The supplied protocol commands do not include a gripper stop command; a timeout reports failure but cannot guarantee the gripper stopped. Verify the Robotiq interface, direction (which endpoint is open), and force behavior at low speed with the work area clear before use. Physical gripper behavior has not been tested here.
 
 The Docker image uses `colcon build --symlink-install`, and Compose mounts the repository source read-only into the container. Edits to Python and launch files on the host are visible in the running container; restart the affected ROS process to load them. C++ changes still need recompilation. The workspace is root-owned in the image, so rebuild it from a desktop terminal with `sudo`:
 

@@ -27,6 +27,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/ElfinIODRead.srv"
   "srv/ElfinIODWrite.srv"
   "srv/SetFloat64.srv"
+  "srv/SetRobotiq.srv"
   "srv/SetInt16.srv"
   "srv/SetString.srv"
  )

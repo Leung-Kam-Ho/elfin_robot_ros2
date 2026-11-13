@@ -1,5 +1,6 @@
 """Small synchronous client for the HansRobot ASCII TCP protocol."""
 
+import math
 import socket
 import threading
 import time
@@ -9,24 +10,52 @@ class ProtocolError(RuntimeError):
     """Raised when the robot returns an invalid or failed protocol reply."""
 
 
-def format_digital_output_command(io_type, robot_id, io_index, state):
-    """Build a HansRobot digital-output command for a configured output."""
-    io_type = str(io_type).lower()
-    io_index = int(io_index)
-    state = int(state)
-    robot_id = int(robot_id)
-    if io_index < 0:
-        raise ValueError("Digital output index must be non-negative")
-    if state not in (0, 1):
-        raise ValueError("Digital output state must be 0 or 1")
+def clamp(value, minimum, maximum):
+    value = float(value)
+    if not math.isfinite(value):
+        raise ValueError("Robotiq command values must be finite")
+    return max(min(float(maximum), value), float(minimum))
 
-    if io_type == "robot":
-        return f"SetOutIOState,{robot_id},{io_index},{state},;"
-    if io_type == "config":
-        return f"SetConfigDO,{io_index},{state},;"
-    if io_type == "serial":
-        return f"SetSerialDO,{io_index},{state},;"
-    raise ValueError("io_type must be 'robot', 'config', or 'serial'")
+
+def format_robotiq_command(position, speed=250, force=10):
+    """Clamp values and format a HansRobot SetRobotiq command."""
+    position = clamp(position, 0, 140)
+    speed = int(round(clamp(speed, 30, 250)))
+    force = int(round(clamp(force, 10, 125)))
+    position_text = f"{position:.3f}".rstrip("0").rstrip(".")
+    return f"SetRobotiq,{position_text},{speed},{force},;"
+
+
+def parse_robotiq_position(fields):
+    """Parse the payload returned by ReadRobotiqPosition."""
+    if not fields:
+        raise ProtocolError("ReadRobotiqPosition returned no position")
+    try:
+        position = float(fields[0])
+    except (TypeError, ValueError) as exc:
+        raise ProtocolError(
+            f"Invalid ReadRobotiqPosition response: {fields}"
+        ) from exc
+    if not math.isfinite(position) or position < 0 or position > 140:
+        raise ProtocolError(f"Robotiq position is outside 0-140 degrees: {position}")
+    return position
+
+
+def parse_robotiq_moving(fields):
+    """Return the moving state encoded by RobotiqStatus."""
+    try:
+        values = [int(value) for value in fields]
+    except (TypeError, ValueError) as exc:
+        raise ProtocolError(f"Invalid RobotiqStatus response: {fields}") from exc
+
+    moving_state = (0, 3, 1, 1)
+    stopped_states = ((3, 3, 1, 1), (2, 3, 1, 1))
+    windows = [tuple(values[index:index + 4]) for index in range(len(values) - 3)]
+    if moving_state in windows:
+        return True
+    if any(state in windows for state in stopped_states):
+        return False
+    raise ProtocolError(f"Unexpected RobotiqStatus response: {fields}")
 
 
 class HansRobotTcpClient:
