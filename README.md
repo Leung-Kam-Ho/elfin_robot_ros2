@@ -141,6 +141,12 @@ The ROS 2 packages are built by colcon, not uv. In particular,
 provided by ROS rather than PyPI, so colcon remains responsible for building
 ROS packages.
 
+ROS 2 DDS discovery is loopback-only by default (`ROS_LOCALHOST_ONLY=1`) to keep
+the graph inside the container and avoid Docker bridge-interface discovery
+issues. The host CLI uses the HTTP API and does not need ROS network access. Set
+`ROS_LOCALHOST_ONLY=0` only if you intentionally need ROS 2 nodes outside the
+container; all ROS processes must use the same setting and domain ID.
+
 ---
 
 ## TCP protocol adapter

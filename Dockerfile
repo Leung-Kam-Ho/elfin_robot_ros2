@@ -60,7 +60,7 @@ cat << EOF >> "$CONF_PATH"
 [program:elfin_tcp_moveit]
 command=/usr/local/bin/elfin_tcp_autostart.sh
 user=$USER
-environment=HOME="$HOME",DISPLAY=":$VNC_DISPLAY",XAUTHORITY="$HOME/.Xauthority"
+environment=HOME="$HOME",DISPLAY=":$VNC_DISPLAY",XAUTHORITY="$HOME/.Xauthority",ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}",ROS_LOCALHOST_ONLY="${ROS_LOCALHOST_ONLY:-1}"
 autostart=true
 autorestart=false
 priority=1000
@@ -68,7 +68,7 @@ startsecs=0
 [program:elfin_tcp_tui]
 command=/usr/local/bin/elfin_tcp_tui_autostart.sh
 user=$USER
-environment=HOME="$HOME",DISPLAY=":$VNC_DISPLAY",XAUTHORITY="$HOME/.Xauthority"
+environment=HOME="$HOME",DISPLAY=":$VNC_DISPLAY",XAUTHORITY="$HOME/.Xauthority",ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}",ROS_LOCALHOST_ONLY="${ROS_LOCALHOST_ONLY:-1}"
 autostart=true
 autorestart=false
 priority=1001
@@ -81,7 +81,7 @@ cat << EOF >> "$CONF_PATH"
 [program:elfin_joint_api]
 command=/usr/local/bin/elfin_web_api.sh
 user=$USER
-environment=HOME="$HOME",DISPLAY=":$VNC_DISPLAY",XAUTHORITY="$HOME/.Xauthority",ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}",ELFIN_JOINT_API_HOST="0.0.0.0",ELFIN_JOINT_API_PORT="${ELFIN_JOINT_API_PORT:-5001}"
+environment=HOME="$HOME",DISPLAY=":$VNC_DISPLAY",XAUTHORITY="$HOME/.Xauthority",ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}",ROS_LOCALHOST_ONLY="${ROS_LOCALHOST_ONLY:-1}",ELFIN_JOINT_API_HOST="0.0.0.0",ELFIN_JOINT_API_PORT="${ELFIN_JOINT_API_PORT:-5001}"
 autostart=true
 autorestart=true
 priority=1002
